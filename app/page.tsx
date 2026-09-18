@@ -1,6 +1,8 @@
+import Link from "next/link";
+
 const MILESTONES = [
   { n: 1, title: "Scaffold, schema, seed", done: true },
-  { n: 2, title: "Products and the stock ledger", done: false },
+  { n: 2, title: "Products and the stock ledger", done: true },
   { n: 3, title: "Orders and the state machine", done: false },
   { n: 4, title: "MockShop A and the adapter interface", done: false },
   { n: 5, title: "MockShop B and idempotent order pull", done: false },
@@ -16,6 +18,13 @@ export default function Home() {
         A miniature omnichannel order hub — product/stock/order core, two mock marketplace
         connectors, and an admin dashboard. Being built in the open, one milestone at a time.
       </p>
+
+      <Link
+        href="/products"
+        className="mt-6 inline-flex rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800"
+      >
+        Open products &amp; stock
+      </Link>
 
       <ol className="mt-10 divide-y divide-neutral-200 border-y border-neutral-200">
         {MILESTONES.map((m) => (
