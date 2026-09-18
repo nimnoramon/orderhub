@@ -1,0 +1,228 @@
+// OrderHub — see CLAUDE.md for the invariants this schema exists to enforce.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProductStatus {
+  draft
+  active
+  archived
+}
+
+enum StockReason {
+  purchase
+  sale
+  adjustment
+  return
+  sync
+}
+
+enum OrderStatus {
+  created
+  paid
+  packed
+  shipped
+  cancelled
+}
+
+enum ChannelKind {
+  mock_a
+  mock_b
+  storefront
+}
+
+enum SyncJobType {
+  catalog_push
+  order_pull
+}
+
+enum SyncJobStatus {
+  queued
+  running
+  succeeded
+  partial
+  failed
+}
+
+model Merchant {
+  id         String      @id @default(cuid())
+  name       String
+  createdAt  DateTime    @default(now())
+  users      User[]
+  products   Product[]
+  warehouses Warehouse[]
+  channels   Channel[]
+  orders     Order[]
+}
+
+/// Demo login only. Not production auth — see "Not in scope" in the README.
+model User {
+  id           String   @id @default(cuid())
+  merchantId   String
+  merchant     Merchant @relation(fields: [merchantId], references: [id])
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+
+  @@index([merchantId])
+}
+
+model Product {
+  id         String        @id @default(cuid())
+  merchantId String
+  merchant   Merchant      @relation(fields: [merchantId], references: [id])
+  sku        String
+  name       String
+  status     ProductStatus @default(active)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  variants   Variant[]
+
+  @@unique([merchantId, sku])
+  @@index([merchantId, status])
+}
+
+model Variant {
+  id         String          @id @default(cuid())
+  productId  String
+  product    Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku        String
+  attributes Json            @default("{}")
+  priceCents Int
+  currency   String          @default("USD")
+  movements  StockMovement[]
+  orderItems OrderItem[]
+
+  @@unique([productId, sku])
+}
+
+model Warehouse {
+  id         String          @id @default(cuid())
+  merchantId String
+  merchant   Merchant        @relation(fields: [merchantId], references: [id])
+  name       String
+  code       String
+  movements  StockMovement[]
+
+  @@unique([merchantId, code])
+}
+
+/// APPEND ONLY. Never UPDATE, never DELETE.
+/// Stock on hand = SUM(delta) grouped by (variantId, warehouseId).
+/// A correction is a new row with a negative delta and a reason, not an edit.
+model StockMovement {
+  id          String      @id @default(cuid())
+  variantId   String
+  variant     Variant     @relation(fields: [variantId], references: [id])
+  warehouseId String
+  warehouse   Warehouse   @relation(fields: [warehouseId], references: [id])
+  delta       Int
+  reason      StockReason
+  /// What caused this movement: "order" | "sync_job" | "manual" | "seed"
+  refType     String?
+  refId       String?
+  note        String?
+  createdAt   DateTime    @default(now())
+
+  @@index([variantId, warehouseId])
+  @@index([refType, refId])
+  @@index([createdAt])
+}
+
+model Channel {
+  id           String      @id @default(cuid())
+  merchantId   String
+  merchant     Merchant    @relation(fields: [merchantId], references: [id])
+  kind         ChannelKind
+  name         String
+  credentials  Json        @default("{}")
+  /// Opaque pagination cursor from the channel. Advanced only after a whole
+  /// page has been committed, so a crash replays the page instead of skipping it.
+  cursor       String?
+  isActive     Boolean     @default(true)
+  lastSyncedAt DateTime?
+  orders       Order[]
+  syncJobs     SyncJob[]
+
+  @@index([merchantId, isActive])
+}
+
+model Order {
+  id           String       @id @default(cuid())
+  merchantId   String
+  merchant     Merchant     @relation(fields: [merchantId], references: [id])
+  channelId    String
+  channel      Channel      @relation(fields: [channelId], references: [id])
+  /// The channel's own order id. NULL for storefront orders — Postgres treats
+  /// NULLs as distinct, so the unique index below does not collide on them.
+  externalId   String?
+  status       OrderStatus  @default(created)
+  customerName String
+  totalCents   Int
+  currency     String       @default("USD")
+  placedAt     DateTime
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  items        OrderItem[]
+  events       OrderEvent[]
+
+  /// The idempotency guard. Re-pulling a page must never duplicate an order,
+  /// and the database — not an application-level existence check — decides.
+  @@unique([channelId, externalId])
+  @@index([merchantId, status, placedAt])
+  @@index([merchantId, placedAt])
+}
+
+model OrderItem {
+  id             String  @id @default(cuid())
+  orderId        String
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId      String
+  variant        Variant @relation(fields: [variantId], references: [id])
+  qty            Int
+  unitPriceCents Int
+
+  @@index([orderId])
+}
+
+/// Append-only audit of status changes. Feeds the order detail timeline.
+model OrderEvent {
+  id         String       @id @default(cuid())
+  orderId    String
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  /// "demo@orderhub.dev" | "channel:mock_a" | "seed"
+  actor      String
+  note       String?
+  createdAt  DateTime     @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model SyncJob {
+  id           String        @id @default(cuid())
+  channelId    String
+  channel      Channel       @relation(fields: [channelId], references: [id])
+  type         SyncJobType
+  status       SyncJobStatus @default(queued)
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  attempt      Int           @default(0)
+  itemsOk      Int           @default(0)
+  itemsFailed  Int           @default(0)
+  /// [{ ref, code, message }] — batch APIs fail per item, so the failures are
+  /// recorded per item and the job ends `partial`, not `failed`.
+  errorSummary Json?
+  createdAt    DateTime      @default(now())
+
+  @@index([channelId, createdAt])
+  @@index([status])
+}
