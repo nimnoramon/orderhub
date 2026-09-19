@@ -29,6 +29,7 @@ src/server/          all business logic and the only code that touches the DB
   ratelimit/         token bucket
   http/              handler + error -> status mapping, in one place
 src/lib/             types, zod schemas, money and date helpers (shared both sides)
+src/mock/            the mock marketplaces' own internals — a third party, not us
 src/components/      UI
 prisma/              schema, migrations, seed
 tests/               the three suites that matter (see Testing)
@@ -65,6 +66,13 @@ is worse than not building the feature.
 7. **`app/` never imports `prisma`.** Route handlers and pages go through
    `src/server/services/*`. This is what keeps the honest answer to "why not
    NestJS?" true: the service layer would lift out unchanged.
+8. **An adapter and its mock share no contract.** `src/server/channels/*` must
+   not import a schema, a type or a constant from `src/mock/*`, or the other way
+   round — each restates the wire format, exactly as it would if the marketplace
+   were a company with a PDF. Sharing a primitive both sides would have written
+   anyway (`src/lib/hmac.ts`) is fine; sharing the shape of a payload is what
+   turns an integration test into a tautology. The mocks also answer in their own
+   error envelope and never use `src/server/http/`.
 
 ## Conventions
 
@@ -95,6 +103,12 @@ about:
 
 Plus `tests/channel-mapping.test.ts` for MockShop B's field and date mapping.
 Everything else can go untested; say so in the README rather than faking coverage.
+
+Milestone 4 added two more, because they need no database and cover the two
+things an interviewer asks about next: `tests/catalog-batch.test.ts` (the
+per-item rules, the adapter reading a batch response, and all four outcomes of
+`statusForCounts`) and `tests/webhook-signature.test.ts` (sign/verify, wrong
+secret, altered body, replayed timestamp).
 
 ## Commands
 

@@ -346,6 +346,17 @@ async function main() {
   // --- sync history -------------------------------------------------------------
   // Includes `partial` runs, because that outcome is the point of the project and
   // an empty sync log would hide it.
+  //
+  // Code and message travel as a pair. Picking them independently produced rows
+  // like SKU_REJECTED / "price must be greater than zero", which nobody notices
+  // until the sync log puts the two side by side.
+  const SYNC_FAILURES = [
+    { code: 'INVALID_PRICE', message: 'price must be greater than zero' },
+    { code: 'MISSING_ATTRIBUTE', message: 'attribute "size" is required by this channel' },
+    { code: 'SKU_REJECTED', message: 'sku is already mapped to another listing' },
+    { code: 'RATE_LIMITED', message: 'rate limit exceeded, retry after 6s' },
+  ] as const;
+
   const syncJobs = Array.from({ length: 14 }, () => {
     const channel = pick([channelByKind.mock_a, channelByKind.mock_b]);
     const type = pick(['catalog_push', 'order_pull'] as const) as SyncJobType;
@@ -367,13 +378,7 @@ async function main() {
         itemsFailed > 0
           ? Array.from({ length: itemsFailed }, () => ({
               ref: pick(variants).sku,
-              code: pick(['INVALID_PRICE', 'MISSING_ATTRIBUTE', 'SKU_REJECTED', 'RATE_LIMITED']),
-              message: pick([
-                'price must be greater than zero',
-                'attribute "size" is required by this channel',
-                'sku is already mapped to another listing',
-                'rate limit exceeded, retry after 6s',
-              ]),
+              ...pick(SYNC_FAILURES),
             }))
           : undefined,
       createdAt: startedAt,

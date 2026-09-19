@@ -1,4 +1,11 @@
-import type { ChannelKind, OrderStatus, ProductStatus, StockReason } from '@/generated/prisma/enums';
+import type {
+  ChannelKind,
+  OrderStatus,
+  ProductStatus,
+  StockReason,
+  SyncJobStatus,
+  SyncJobType,
+} from '@/generated/prisma/enums';
 
 /// The shapes that cross the server/client boundary. Money is integer minor
 /// units, dates are UTC ISO strings — both are formatted only when rendered.
@@ -150,3 +157,46 @@ export type OrderDetail = {
 };
 
 export type OrdersPage = Paginated<OrderListItem> & { channels: ChannelRef[] };
+
+/**
+ * One entry of `SyncJob.errorSummary`. Batch APIs answer per item, so a failure
+ * is a row in a list and not a message on the job.
+ */
+export type SyncFailure = { ref: string; code: string; message: string };
+
+export type SyncJobItem = {
+  id: string;
+  channel: ChannelRef;
+  type: SyncJobType;
+  status: SyncJobStatus;
+  startedAt: string | null;
+  finishedAt: string | null;
+  /** Derived from the two timestamps, so the screen does no date arithmetic. */
+  durationMs: number | null;
+  attempt: number;
+  itemsOk: number;
+  itemsFailed: number;
+  failures: SyncFailure[];
+  createdAt: string;
+};
+
+export type SyncJobsPage = Paginated<SyncJobItem> & { channels: ChannelRef[] };
+
+/** A channel as the Channels screen needs it: what it is, and how its syncs went. */
+export type ChannelSummary = {
+  id: string;
+  name: string;
+  kind: ChannelKind;
+  isActive: boolean;
+  /**
+   * `none` for the storefront — orders originate here, so there is nothing to
+   * sync — and `planned` for a marketplace whose adapter is not written yet.
+   * The screen says which, rather than treating both as "no connector".
+   */
+  connector: 'ready' | 'planned' | 'none';
+  cursor: string | null;
+  lastSyncedAt: string | null;
+  orderCount: number;
+  /** The most recent run of each kind, or null if it has never run. */
+  lastJobs: Record<SyncJobType, SyncJobItem | null>;
+};

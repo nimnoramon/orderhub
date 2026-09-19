@@ -12,8 +12,8 @@ const ITEMS = [
   { label: 'Overview', href: null, milestone: 7 },
   { label: 'Orders', href: '/orders', milestone: null },
   { label: 'Products & stock', href: '/products', milestone: null },
-  { label: 'Channels', href: null, milestone: 4 },
-  { label: 'Sync log', href: null, milestone: 4 },
+  { label: 'Channels', href: '/channels', milestone: null },
+  { label: 'Sync log', href: '/sync-log', milestone: null },
 ] as const;
 
 export function SideNav() {

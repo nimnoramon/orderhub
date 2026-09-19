@@ -14,6 +14,10 @@ export const ERROR_STATUS = {
   UNAUTHORIZED: 401,
   RATE_LIMITED: 429,
   INTERNAL: 500,
+  // A channel failed us, rather than us failing. 502 says the request was fine
+  // and the thing upstream was not, which is what a caller needs to decide
+  // whether retrying is worth anything.
+  CHANNEL_ERROR: 502,
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_STATUS;

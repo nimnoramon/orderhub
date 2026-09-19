@@ -66,7 +66,49 @@ Tested: `tests/order-state-machine.test.ts` — every legal transition, and all 
 status pairs asserted against a hand-written list, so no illegal move can be
 introduced by widening the table.
 
-The services, routes and UI around both are deliberately untested; the three
+**Channels & catalog sync** (`/channels`, `/sync-log`) — the first marketplace
+connector, the interface behind it, and the log every run lands in.
+
+```
+GET  /api/channels
+POST /api/channels/:id/sync/catalog         -> runs the push, answers with the job
+GET  /api/sync-jobs?channelId=&status=&type=&page=
+
+POST /api/mock/a/catalog/batch              -> MockShop A: <=50 items, per-item results
+GET  /api/mock/a/orders?cursor=&limit=      -> MockShop A: cursor-paginated feed
+POST /api/mock/a/webhooks/send              -> MockShop A: an HMAC-signed delivery
+```
+
+- **`partial` is a first-class outcome.** A batch API fails per item, not per
+  request: MockShop A answers `200` with a result for each of the 50 listings it
+  was sent, and a run where 81 landed and 6 were rejected is `partial` — not
+  `failed`, which would throw away the 81 and invite a retry that pushes them
+  again, and not `succeeded`, which would hide the 6. The rule is one pure
+  function in `src/server/sync/runner.ts`; nothing succeeding at all is `failed`,
+  because there is nothing partial about it. A batch that fails as a whole — the
+  connection dropped, the key was rejected — records its items as failed and the
+  next batch is still attempted, so the counts stay counts of items.
+- **The connector and the marketplace share nothing but HTTP.** MockShop A is a
+  route in this same deployment and could have been imported as a function.
+  Reaching it with `fetch`, an API key and a timeout is what makes the mapping,
+  the response validation and the failure handling real code: `src/mock/` speaks
+  `price_cents`, `options` and `{ ok: false, error_code }`, and none of that
+  exists above `src/server/channels/mock-a.ts`. The adapter *validates* what the
+  channel returns rather than casting it — a channel is the one input that is
+  neither the user nor us.
+- **The fake is deterministic.** Which SKUs MockShop A rejects is a hash of the
+  SKU, and order *n* of its feed is always the same order, so the sync log is
+  reproducible, the screenshots stay true, and re-reading a cursor returns what
+  it returned before — which is what will make milestone 5's idempotency test
+  mean something.
+
+Tested: `tests/catalog-batch.test.ts` — the per-item rules, the adapter's reading
+of a batch response over a stubbed transport, and all four outcomes of the status
+rule. `tests/webhook-signature.test.ts` — sign/verify round trip, wrong secret,
+a body changed by one character, a signature moved to a fresh timestamp, and the
+adapter verifying a delivery the mock actually signed.
+
+The services, routes and UI around them are deliberately untested; the three
 suites that matter are listed in [CLAUDE.md](CLAUDE.md#testing) and arrive with
 the milestones they belong to.
 
@@ -125,7 +167,15 @@ without it fails at build rather than at runtime.
 | `DATABASE_URL` | the pooled `production` connection string |
 | `DEMO_EMAIL`, `DEMO_PASSWORD` | the seeded login, printed on the landing page |
 
-Everything else in `.env.example` belongs to milestones 4–6; leave it unset. The
+The connector reaches the mock marketplaces over HTTP, so it needs to know the
+deployment's own origin. `APP_BASE_URL` sets it; left unset, it falls back to
+Vercel's per-deployment `VERCEL_URL`, which is what you want on a preview so it
+talks to itself rather than to production. `MOCK_A_API_KEY` and
+`MOCK_A_WEBHOOK_SECRET` default to the values the seed writes onto the channel
+row, so they only matter if you intend to change them — and then the seed has to
+be run again.
+
+Everything else in `.env.example` belongs to milestones 5–6; leave it unset. The
 landing page is statically rendered, so changing either `DEMO_*` value needs a
 redeploy before the card on it catches up.
 

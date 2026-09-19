@@ -25,6 +25,14 @@ export const formatDate = (iso: string): string => dateOnly.format(new Date(iso)
 
 export const formatDateTime = (iso: string): string => `${dateAndTime.format(new Date(iso))} UTC`;
 
+/** How long a sync took. Sub-second runs are the normal case, so they keep their digits. */
+export function formatDuration(ms: number | null): string {
+  if (ms === null) return '—';
+  if (ms < 1000) return `${ms} ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
+  return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
+}
+
 /**
  * Date filters arrive as `YYYY-MM-DD` from a pair of date inputs and mean whole
  * days in UTC, because that is the timezone every stored timestamp is read in.
