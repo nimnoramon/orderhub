@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { DemoNotice } from '@/components/ui/DemoNotice';
 import { SideNav } from '@/components/ui/SideNav';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -12,7 +13,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <p className="mt-0.5 mb-5 text-xs text-neutral-400">Northwind Supply Co. · demo data</p>
         <SideNav />
       </aside>
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="flex min-w-0 flex-1 flex-col gap-5">
+        <DemoNotice />
+        {children}
+      </main>
     </div>
   );
 }

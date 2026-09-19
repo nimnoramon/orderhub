@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { faker } from '@faker-js/faker';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../src/server/db';
+import { databaseTarget, demoLogin } from '../src/server/demo';
 import type { OrderStatus, ProductStatus, StockReason, SyncJobStatus, SyncJobType } from '../src/generated/prisma/enums';
 
 // Fixed seed: the demo data is identical on every machine and every reset, so a
@@ -76,15 +77,22 @@ async function reset() {
 }
 
 async function main() {
+  // This script deletes everything before it writes anything, and `db:seed:prod`
+  // points it at the production branch. Saying which database is about to be
+  // rewritten costs one line and is the difference between a reseeded demo and
+  // a very bad evening.
+  console.log(`seeding      ${databaseTarget()}\n`);
+
   await reset();
 
   const merchant = await prisma.merchant.create({ data: { name: 'Northwind Supply Co.' } });
 
+  const login = demoLogin();
   await prisma.user.create({
     data: {
       merchantId: merchant.id,
-      email: process.env.DEMO_EMAIL ?? 'demo@orderhub.dev',
-      passwordHash: await bcrypt.hash(process.env.DEMO_PASSWORD ?? 'demo1234', 10),
+      email: login.email,
+      passwordHash: await bcrypt.hash(login.password, 10),
       name: 'Demo User',
     },
   });
@@ -377,7 +385,7 @@ async function main() {
   console.log(
     [
       `merchant     ${merchant.name}`,
-      `login        ${process.env.DEMO_EMAIL ?? 'demo@orderhub.dev'} / ${process.env.DEMO_PASSWORD ?? 'demo1234'}`,
+      `login        ${login.email} / ${login.password}`,
       `warehouses   ${warehouses.length}`,
       `channels     ${channels.length}`,
       `products     ${products.length} (${variants.length} variants)`,
