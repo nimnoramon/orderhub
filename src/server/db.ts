@@ -5,21 +5,47 @@ import { Prisma, PrismaClient } from '@/generated/prisma/client';
 // Neon's pooled connection string works the same locally and on Vercel; if
 // serverless connection counts ever became a problem we would swap in
 // @prisma/adapter-neon without touching anything above this file.
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) throw new Error('DATABASE_URL is not set');
+function createClient(): PrismaClient {
+  const connectionString = process.env.DATABASE_URL;
+  // Thrown on first use rather than on import. Importing a module must not
+  // require a database to exist: `next build` loads every route to collect its
+  // page data, and a module that threw at import time failed the build of an
+  // app that was perfectly capable of running.
+  if (!connectionString) throw new Error('DATABASE_URL is not set');
 
-const createClient = () =>
-  new PrismaClient({
+  return new PrismaClient({
     adapter: new PrismaPg({ connectionString }),
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   });
+}
 
-// Next.js dev hot-reloads modules; without this each reload opens a new pool.
+// Next.js dev hot-reloads modules; without the global each reload opens a new
+// pool. The module-level memo is what keeps one client per process everywhere
+// else — a lazy getter without it would build a client per call.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+let instance: PrismaClient | undefined;
 
-export const prisma = globalForPrisma.prisma ?? createClient();
+function client(): PrismaClient {
+  instance ??= globalForPrisma.prisma ?? createClient();
+  if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = instance;
+  return instance;
+}
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+/**
+ * The client, created on first property access.
+ *
+ * A proxy rather than a `db()` function so that every call site still reads
+ * `prisma.order.findMany(...)`: the laziness is an infrastructure detail and
+ * should not be visible in the services. Methods are bound to the real client
+ * because `$transaction` and `$executeRaw` need their own `this`.
+ */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const target = client();
+    const value = Reflect.get(target, property) as unknown;
+    return typeof value === 'function' ? value.bind(target) : value;
+  },
+});
 
 /**
  * P2002 — unique constraint violated. Worth a named helper because the project
