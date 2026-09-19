@@ -1,4 +1,6 @@
-import type { ProductStatus } from '@/generated/prisma/enums';
+import type { OrderStatus, ProductStatus } from '@/generated/prisma/enums';
+
+const PILL = 'inline-flex rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset';
 
 const STYLES: Record<ProductStatus, string> = {
   active: 'bg-teal-50 text-teal-800 ring-teal-600/20',
@@ -7,13 +9,20 @@ const STYLES: Record<ProductStatus, string> = {
 };
 
 export function StatusPill({ status }: { status: ProductStatus }) {
-  return (
-    <span
-      className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STYLES[status]}`}
-    >
-      {status}
-    </span>
-  );
+  return <span className={`${PILL} ${STYLES[status]}`}>{status}</span>;
+}
+
+/** Colour follows the lifecycle: nothing yet, money in, moving, gone, stopped. */
+const ORDER_STYLES: Record<OrderStatus, string> = {
+  created: 'bg-neutral-100 text-neutral-600 ring-neutral-500/20',
+  paid: 'bg-sky-50 text-sky-800 ring-sky-600/20',
+  packed: 'bg-amber-50 text-amber-800 ring-amber-600/20',
+  shipped: 'bg-teal-50 text-teal-800 ring-teal-600/20',
+  cancelled: 'bg-rose-50 text-rose-800 ring-rose-600/20',
+};
+
+export function OrderStatusPill({ status }: { status: OrderStatus }) {
+  return <span className={`${PILL} ${ORDER_STYLES[status]}`}>{status}</span>;
 }
 
 export function LowStockPill() {

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { ProductStatus } from '@/generated/prisma/enums';
-
-export const PAGE_SIZE = 20;
+import { PAGE_SIZE } from '@/lib/schemas/query';
 
 export const productListQuery = z.object({
   query: z.string().max(100).optional(),

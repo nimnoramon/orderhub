@@ -16,3 +16,6 @@ export function cleanParams(
   }
   return out;
 }
+
+/** One page of any list screen. Shared so the tables all page identically. */
+export const PAGE_SIZE = 20;

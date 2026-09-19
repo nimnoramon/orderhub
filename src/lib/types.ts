@@ -1,4 +1,4 @@
-import type { ProductStatus, StockReason } from '@/generated/prisma/enums';
+import type { ChannelKind, OrderStatus, ProductStatus, StockReason } from '@/generated/prisma/enums';
 
 /// The shapes that cross the server/client boundary. Money is integer minor
 /// units, dates are UTC ISO strings — both are formatted only when rendered.
@@ -91,3 +91,62 @@ export type AdjustmentResult = {
   movement: MovementListItem;
   level: { variantId: string; warehouseId: string; onHand: number; lowStock: boolean };
 };
+
+export type ChannelRef = { id: string; name: string; kind: ChannelKind };
+
+export type OrderListItem = {
+  id: string;
+  /** What to print in a table: the channel's id, or a short form of ours. */
+  reference: string;
+  externalId: string | null;
+  channel: ChannelRef;
+  status: OrderStatus;
+  customerName: string;
+  itemCount: number;
+  totalCents: number;
+  currency: string;
+  placedAt: string;
+};
+
+export type OrderLine = {
+  id: string;
+  variantId: string;
+  variantSku: string;
+  attributes: Record<string, string>;
+  productId: string;
+  productName: string;
+  qty: number;
+  unitPriceCents: number;
+  lineTotalCents: number;
+};
+
+/** One row of the status timeline. `fromStatus` is null for the opening event. */
+export type OrderEventItem = {
+  id: string;
+  fromStatus: OrderStatus | null;
+  toStatus: OrderStatus;
+  actor: string;
+  note: string | null;
+  createdAt: string;
+};
+
+export type OrderDetail = {
+  id: string;
+  reference: string;
+  externalId: string | null;
+  channel: ChannelRef;
+  status: OrderStatus;
+  customerName: string;
+  totalCents: number;
+  /** The lines, summed. May differ from totalCents — see the service. */
+  lineTotalCents: number;
+  currency: string;
+  placedAt: string;
+  updatedAt: string;
+  items: OrderLine[];
+  timeline: OrderEventItem[];
+  /** From the state machine, so an API client sees the same rules as the UI. */
+  allowedTransitions: OrderStatus[];
+};
+
+export type OrdersPage = Paginated<OrderListItem> & { channels: ChannelRef[] };

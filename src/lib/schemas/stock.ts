@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { StockReason } from '@/generated/prisma/enums';
-import { PAGE_SIZE } from '@/lib/schemas/products';
+import { PAGE_SIZE } from '@/lib/schemas/query';
 
 /**
  * The reasons a human may pick in the adjust dialog. `sale` belongs to the

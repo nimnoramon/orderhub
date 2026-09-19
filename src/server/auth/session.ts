@@ -23,3 +23,15 @@ export async function requireMerchantId(): Promise<string> {
   cached = merchant.id;
   return cached;
 }
+
+/**
+ * Who to record as the actor on anything this request writes. Channel-driven
+ * writes pass their own label (`channel:mock_a`); everything a human clicks in
+ * the dashboard is the demo login, until real auth replaces this with the email
+ * on the session cookie.
+ */
+export const DEMO_ACTOR = 'demo@orderhub.dev';
+
+export async function currentActor(): Promise<string> {
+  return DEMO_ACTOR;
+}

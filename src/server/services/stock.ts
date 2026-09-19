@@ -1,3 +1,4 @@
+import type { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/server/db';
 import { AppError, notFound } from '@/server/http/errors';
 import { deriveLevels, isLowStock, wouldGoNegative, type DeltaRow } from '@/server/stock/levels';
@@ -60,8 +61,16 @@ export const toDeltaRows = (
     delta: row._sum.delta ?? 0,
   }));
 
-export async function listWarehouses(merchantId: string): Promise<WarehouseRef[]> {
-  return prisma.warehouse.findMany({
+/**
+ * `client` lets a caller inside a transaction read through it rather than around
+ * it. Reads that skip the open transaction see a different snapshot, which is
+ * how a service ends up deciding on stale data it has already changed itself.
+ */
+export async function listWarehouses(
+  merchantId: string,
+  client: Prisma.TransactionClient = prisma,
+): Promise<WarehouseRef[]> {
+  return client.warehouse.findMany({
     where: { merchantId },
     orderBy: { code: 'asc' },
     select: { id: true, code: true, name: true },

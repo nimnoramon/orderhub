@@ -24,3 +24,18 @@ const dateAndTime = new Intl.DateTimeFormat('en-GB', {
 export const formatDate = (iso: string): string => dateOnly.format(new Date(iso));
 
 export const formatDateTime = (iso: string): string => `${dateAndTime.format(new Date(iso))} UTC`;
+
+/**
+ * Date filters arrive as `YYYY-MM-DD` from a pair of date inputs and mean whole
+ * days in UTC, because that is the timezone every stored timestamp is read in.
+ * `to` is inclusive to the person typing it, so it becomes an exclusive bound on
+ * the following midnight rather than `23:59:59` — a bound that would silently
+ * drop an order placed in the last second of the day.
+ */
+export const startOfUtcDay = (day: string): Date => new Date(`${day}T00:00:00.000Z`);
+
+export const endOfUtcDayExclusive = (day: string): Date => {
+  const end = startOfUtcDay(day);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return end;
+};

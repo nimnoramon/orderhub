@@ -10,7 +10,7 @@ import { usePathname } from 'next/navigation';
  */
 const ITEMS = [
   { label: 'Overview', href: null, milestone: 7 },
-  { label: 'Orders', href: null, milestone: 3 },
+  { label: 'Orders', href: '/orders', milestone: null },
   { label: 'Products & stock', href: '/products', milestone: null },
   { label: 'Channels', href: null, milestone: 4 },
   { label: 'Sync log', href: null, milestone: 4 },
