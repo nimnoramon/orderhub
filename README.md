@@ -350,7 +350,7 @@ or a database anywhere near them.
 **Two marketplaces, one interface, nothing shared.** MockShop B disagrees with A
 about everything an integration can disagree about: Basic auth instead of a key
 header, `order_reference` instead of `id`, `17/09/2026 22:00:00` in Singapore
-time instead of ISO UTC, `"349.70"` instead of `34970`, ten listings a call
+time instead of ISO UTC, `"8990.00"` instead of `899000`, ten listings a call
 instead of fifty, answers grouped into accepted and rejected instead of one
 result per item, and a feed paginated by a watermark instead of an opaque id.
 All of it stops in `src/server/channels/mock-b-mapping.ts`; the service above
