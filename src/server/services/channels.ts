@@ -1,8 +1,10 @@
 import { SyncJobType } from '@/generated/prisma/enums';
 import { prisma } from '@/server/db';
-import { connectorState } from '@/server/channels/registry';
+import { connectorState, rateFor } from '@/server/channels/registry';
+import { channelLimiter } from '@/server/ratelimit/limiter';
+import { EMPTY_QUEUE, queueState } from '@/server/sync/retry-queue';
 import { jobSelect, mapSyncJob } from '@/server/sync/runner';
-import type { ChannelRef, ChannelSummary } from '@/lib/types';
+import type { ChannelRef, ChannelSummary, LimiterState, RetryQueueState } from '@/lib/types';
 
 /**
  * Channels as the rest of the app needs to refer to them: an id, a name and a
@@ -48,7 +50,7 @@ export async function listChannelSummaries(merchantId: string): Promise<ChannelS
     },
   });
 
-  const [orderCounts, lastJobs] = await Promise.all([
+  const [orderCounts, lastJobs, redisState] = await Promise.all([
     prisma.order.groupBy({ by: ['channelId'], where: { merchantId }, _count: { _all: true } }),
     Promise.all(
       channels.flatMap((channel) =>
@@ -62,9 +64,32 @@ export async function listChannelSummaries(merchantId: string): Promise<ChannelS
         }),
       ),
     ),
+    // Redis, read-only: what is left of each channel's request budget and what
+    // its retry queue is holding. Peeking never spends a token — a page load
+    // that throttled the next sync would be a screen changing the thing it is
+    // there to describe.
+    Promise.all(
+      channels.map(async (channel) => {
+        const rate = rateFor(channel.kind);
+        if (!rate) {
+          return {
+            channelId: channel.id,
+            limiter: null as LimiterState | null,
+            retryQueue: EMPTY_QUEUE as RetryQueueState,
+          };
+        }
+
+        const [limiter, retryQueue] = await Promise.all([
+          channelLimiter(channel.id, rate).peek(),
+          queueState(channel.id),
+        ]);
+        return { channelId: channel.id, limiter, retryQueue };
+      }),
+    ),
   ]);
 
   const ordersByChannel = new Map(orderCounts.map((row) => [row.channelId, row._count._all]));
+  const stateByChannel = new Map(redisState.map((row) => [row.channelId, row]));
 
   return channels.map((channel) => ({
     id: channel.id,
@@ -81,5 +106,7 @@ export async function listChannelSummaries(merchantId: string): Promise<ChannelS
         lastJobs.find((entry) => entry.channelId === channel.id && entry.type === type)?.job ?? null,
       ]),
     ) as ChannelSummary['lastJobs'],
+    limiter: stateByChannel.get(channel.id)?.limiter ?? null,
+    retryQueue: stateByChannel.get(channel.id)?.retryQueue ?? EMPTY_QUEUE,
   }));
 }

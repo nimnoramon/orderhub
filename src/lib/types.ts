@@ -182,6 +182,22 @@ export type SyncJobItem = {
 
 export type SyncJobsPage = Paginated<SyncJobItem> & { channels: ChannelRef[] };
 
+/**
+ * What is left of a channel's request budget, as the Channels screen shows it.
+ * `null` for a channel with no connector — there is nothing to pace.
+ */
+export type LimiterState = {
+  capacity: number;
+  remaining: number;
+  nextTokenInMs: number;
+};
+
+/** Catalog items waiting to be pushed again, and when the first one wakes up. */
+export type RetryQueueState = {
+  depth: number;
+  nextDueAt: string | null;
+};
+
 /** A channel as the Channels screen needs it: what it is, and how its syncs went. */
 export type ChannelSummary = {
   id: string;
@@ -199,4 +215,46 @@ export type ChannelSummary = {
   orderCount: number;
   /** The most recent run of each kind, or null if it has never run. */
   lastJobs: Record<SyncJobType, SyncJobItem | null>;
+  /** The token bucket, looked at without spending from it. */
+  limiter: LimiterState | null;
+  retryQueue: RetryQueueState;
+};
+
+/** What a retry run answers with. `job` is null when nothing was due to send. */
+export type RetryRunResult = {
+  job: SyncJobItem | null;
+  queue: RetryQueueState;
+  /** One sentence for the screen, because "no job" is not an error. */
+  note: string;
+};
+
+/**
+ * The overview, as one cached document.
+ *
+ * It is a single type rather than five endpoints because it is a single screen
+ * refreshed on a timer, and five round trips to render one page is five chances
+ * to show numbers that disagree with each other.
+ */
+export type DashboardSummary = {
+  /** When these numbers were computed — not when they were read. */
+  generatedAt: string;
+  today: { orders: number; revenueCents: number };
+  ordersByStatus: Record<OrderStatus, number>;
+  lowStock: { variants: number; threshold: number };
+  channels: {
+    id: string;
+    name: string;
+    kind: ChannelKind;
+    lastSyncedAt: string | null;
+    lastJob: SyncJobItem | null;
+  }[];
+  /** The most recent runs that ended `partial` or `failed`. */
+  recentFailures: SyncJobItem[];
+};
+
+export type DashboardSummaryResponse = {
+  summary: DashboardSummary;
+  /** True when this response came out of Redis rather than out of Postgres. */
+  cached: boolean;
+  ttlSeconds: number;
 };

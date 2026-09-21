@@ -1,5 +1,6 @@
 import type { ChannelKind } from '@/generated/prisma/enums';
 import { AppError } from '@/server/http/errors';
+import type { Rate } from '@/server/ratelimit/token-bucket';
 
 /**
  * The one interface every marketplace connector implements.
@@ -74,6 +75,18 @@ export interface ChannelAdapter {
    * OrderHub's — the service chunks by whatever the adapter says.
    */
   readonly batchLimit: number;
+
+  /**
+   * How fast this channel may be called, for the same reason `batchLimit` is
+   * here: it is the marketplace's number, read out of its documentation, and
+   * the adapter is where a marketplace's rules are written down.
+   *
+   * The adapter declares the rate and spends the tokens; it never learns where
+   * the bucket is kept. What arrives in its constructor is a `Limiter` with an
+   * `acquire()` on it, so an adapter is still constructible — and testable —
+   * with no Redis anywhere near it.
+   */
+  readonly rate: Rate;
 
   pushCatalog(items: CatalogItem[]): Promise<BatchResult>;
   pullOrders(cursor?: string): Promise<OrderPage>;

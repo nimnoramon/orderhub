@@ -7,9 +7,11 @@ import { adapterFor, connectorState } from '@/server/channels/registry';
 import { variantIdsBySku, type IngestContext } from '@/server/orders/ingest';
 import { readPages } from '@/server/orders/pull';
 import { jobSelect, mapSyncJob, runJob } from '@/server/sync/runner';
+import { clearRefs, dueItems, enqueueFailures, queueState } from '@/server/sync/retry-queue';
 import { listChannels } from '@/server/services/channels';
+import { invalidateDashboard } from '@/server/services/dashboard';
 import type { SyncJobListQuery } from '@/lib/schemas/sync';
-import type { SyncFailure, SyncJobItem, SyncJobsPage } from '@/lib/types';
+import type { RetryRunResult, SyncFailure, SyncJobItem, SyncJobsPage } from '@/lib/types';
 
 /**
  * Catalog push, order pull, and reading back what happened.
@@ -30,10 +32,19 @@ import type { SyncFailure, SyncJobItem, SyncJobsPage } from '@/lib/types';
  * What gets listed. Draft and archived products are not listings — pushing a
  * draft would publish something nobody has finished writing, and re-pushing an
  * archived one would resurrect it on the channel.
+ *
+ * `skus` narrows the read to the items a retry run is carrying. The queue holds
+ * references, so this is where a retried item gets its current title and its
+ * current price — a SKU archived since it failed simply does not come back, and
+ * the caller drops it from the queue instead of pushing a listing the merchant
+ * has withdrawn.
  */
-async function catalogItems(merchantId: string): Promise<CatalogItem[]> {
+async function catalogItems(merchantId: string, skus?: readonly string[]): Promise<CatalogItem[]> {
   const variants = await prisma.variant.findMany({
-    where: { product: { merchantId, status: ProductStatus.active } },
+    where: {
+      product: { merchantId, status: ProductStatus.active },
+      ...(skus ? { sku: { in: [...skus] } } : {}),
+    },
     orderBy: { sku: 'asc' },
     select: {
       id: true,
@@ -71,25 +82,80 @@ async function catalogItems(merchantId: string): Promise<CatalogItem[]> {
  * items — a job whose numbers do not add up to the catalog is a job nobody can
  * reason about, and milestone 6's retry queue needs the refs anyway.
  */
-async function pushInBatches(adapter: ChannelAdapter, items: CatalogItem[]) {
+type BatchOutcome = {
+  itemsOk: number;
+  /** The refs the channel accepted, so the queue can forget them. */
+  okRefs: string[];
+  failures: SyncFailure[];
+};
+
+async function pushInBatches(adapter: ChannelAdapter, items: CatalogItem[]): Promise<BatchOutcome> {
   const failures: SyncFailure[] = [];
-  let itemsOk = 0;
+  const okRefs: string[] = [];
 
   for (let start = 0; start < items.length; start += adapter.batchLimit) {
     const batch = items.slice(start, start + adapter.batchLimit);
     try {
       const result = await adapter.pushCatalog(batch);
-      itemsOk += result.ok.length;
+      okRefs.push(...result.ok);
       failures.push(...result.failed);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'the channel could not be reached';
       const code = error instanceof AppError ? error.code : 'INTERNAL';
       if (!(error instanceof AppError)) console.error('[sync:catalog]', error);
       failures.push(...batch.map((item) => ({ ref: item.sku, code, message })));
+
+      // Out of request budget. Unlike a 5xx — which says nothing about the next
+      // call — this says the next call will be refused too, so the run stops and
+      // the items it never sent are recorded as exactly that. They are not
+      // failures of the channel's; they are work this run did not get to, and
+      // the queue is where work goes to be got to later.
+      if (error instanceof AppError && error.code === 'RATE_LIMITED') {
+        const unsent = items.slice(start + adapter.batchLimit);
+        failures.push(
+          ...unsent.map((item) => ({
+            ref: item.sku,
+            code: 'RATE_LIMITED',
+            message: 'Not sent — this channel had no request budget left in this run.',
+          })),
+        );
+        break;
+      }
     }
   }
 
-  return { itemsOk, failures };
+  return { itemsOk: okRefs.length, okRefs, failures };
+}
+
+/**
+ * What happens to a catalog run's results once the pushing is over: the queue
+ * forgets what landed, remembers what is worth another go, and the job's own
+ * error list says which is which.
+ *
+ * Annotating the messages rather than adding rows keeps `itemsOk + itemsFailed`
+ * equal to the number of items pushed — the sync log's counts stay counts of
+ * items — while still telling whoever reads the log whether a given failure is
+ * coming back on its own or waiting for a human.
+ */
+async function settleCatalog(channelId: string, outcome: BatchOutcome) {
+  await clearRefs(channelId, outcome.okRefs);
+  const { queued, exhausted } = await enqueueFailures(channelId, outcome.failures);
+
+  const isQueued = new Set(queued);
+  const isExhausted = new Set(exhausted);
+
+  return {
+    itemsOk: outcome.itemsOk,
+    failures: outcome.failures.map((failure) => {
+      if (isQueued.has(failure.ref)) {
+        return { ...failure, message: `${failure.message} Queued for retry.` };
+      }
+      if (isExhausted.has(failure.ref)) {
+        return { ...failure, message: `${failure.message} Retries exhausted — giving up.` };
+      }
+      return failure;
+    }),
+  };
 }
 
 /**
@@ -128,7 +194,88 @@ export async function pushCatalog(merchantId: string, channelId: string): Promis
   const { channel, adapter } = await syncableChannel(merchantId, channelId);
 
   const items = await catalogItems(merchantId);
-  return runJob(channel.id, SyncJobType.catalog_push, () => pushInBatches(adapter, items));
+  const job = await runJob(channel.id, SyncJobType.catalog_push, async () =>
+    settleCatalog(channel.id, await pushInBatches(adapter, items)),
+  );
+
+  // The overview shows last-sync and recent-failure lines, and both just moved.
+  await invalidateDashboard(merchantId);
+  return job;
+}
+
+/**
+ * Push the items the queue says are due, and nothing else.
+ *
+ * This is the half of the design that makes the queue worth having. A full
+ * catalog push would cover the failed items too — it sends everything — but it
+ * would spend the channel's entire request budget re-listing ninety items to
+ * fix three, and against a marketplace that allows ten calls a minute that is
+ * the difference between a retry and an outage of one's own making.
+ *
+ * There is no worker in this demo, so "due" is evaluated when somebody asks:
+ * the button on the Channels screen, or in a real deployment a cron hitting the
+ * same endpoint every minute. The queue does not care which; it only knows what
+ * is due and how many times each item has failed.
+ */
+export async function runCatalogRetries(
+  merchantId: string,
+  channelId: string,
+): Promise<RetryRunResult> {
+  const { channel, adapter } = await syncableChannel(merchantId, channelId);
+
+  // Two batches' worth: enough for a retry to make visible progress, bounded so
+  // that draining the queue cannot itself become the thing that exhausts the
+  // budget a normal sync needs.
+  const due = await dueItems(channel.id, adapter.batchLimit * 2);
+  if (due.length === 0) {
+    const queue = await queueState(channel.id);
+    return {
+      job: null,
+      queue,
+      note:
+        queue.depth === 0
+          ? 'Nothing is waiting to be retried.'
+          : `${queue.depth} item${queue.depth === 1 ? '' : 's'} queued, none due yet.`,
+    };
+  }
+
+  const items = await catalogItems(
+    merchantId,
+    due.map((item) => item.ref),
+  );
+
+  // A SKU that has been archived or deleted since it failed is not a failure to
+  // retry — it is a listing the merchant withdrew. It leaves the queue quietly.
+  const present = new Set(items.map((item) => item.sku));
+  const withdrawn = due.filter((item) => !present.has(item.ref)).map((item) => item.ref);
+  await clearRefs(channel.id, withdrawn);
+
+  if (items.length === 0) {
+    return {
+      job: null,
+      queue: await queueState(channel.id),
+      note: `${withdrawn.length} queued item${withdrawn.length === 1 ? ' is' : 's are'} no longer in the catalog; dropped.`,
+    };
+  }
+
+  // `attempt` on the queue is how many times an item has failed, so the run
+  // about to happen is one more than the worst of them.
+  const attempt = 1 + Math.max(...due.map((item) => item.attempt));
+
+  const job = await runJob(
+    channel.id,
+    SyncJobType.catalog_push,
+    async () => settleCatalog(channel.id, await pushInBatches(adapter, items)),
+    { attempt },
+  );
+
+  await invalidateDashboard(merchantId);
+
+  return {
+    job,
+    queue: await queueState(channel.id),
+    note: `Attempt ${attempt} for ${items.length} item${items.length === 1 ? '' : 's'}.`,
+  };
 }
 
 /**
@@ -154,7 +301,7 @@ export async function pullOrders(merchantId: string, channelId: string): Promise
     variantIdBySku: await variantIdsBySku(prisma, merchantId),
   };
 
-  return runJob(channel.id, SyncJobType.order_pull, async () => {
+  const job = await runJob(channel.id, SyncJobType.order_pull, async () => {
     const outcome = await readPages({
       adapter,
       db: prisma,
@@ -170,6 +317,11 @@ export async function pullOrders(merchantId: string, channelId: string): Promise
 
     return { itemsOk: outcome.itemsOk, failures: outcome.failures };
   });
+
+  // New orders change today's count and the status breakdown, and the run
+  // itself changes the last-sync line.
+  await invalidateDashboard(merchantId);
+  return job;
 }
 
 export async function listSyncJobs(

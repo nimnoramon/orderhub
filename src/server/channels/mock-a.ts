@@ -3,6 +3,8 @@ import { ChannelKind } from '@/generated/prisma/enums';
 import { appBaseUrl } from '@/lib/app-url';
 import { verifySignature, withinTolerance } from '@/lib/hmac';
 import { AppError } from '@/server/http/errors';
+import { UNLIMITED, type Limiter } from '@/server/ratelimit/limiter';
+import type { Rate } from '@/server/ratelimit/token-bucket';
 import {
   WEBHOOK_EVENT_TYPES,
   credential,
@@ -92,15 +94,29 @@ const toExternalOrder = (payload: z.infer<typeof orderPayload>): ExternalOrder =
   })),
 });
 
+/**
+ * A courtesy limit, not a documented one.
+ *
+ * A publishes no rate limit, which is not the same as having none — it is an
+ * undocumented one, and the way integrations discover it is by being the traffic
+ * that causes it to be written down. Sixty a minute with a burst of twenty is
+ * far above anything this app does in a run, so it never shapes behaviour; what
+ * it does is make the limiter a property of every connector rather than a
+ * special case bolted onto the one marketplace that happened to say no first.
+ */
+export const MOCK_A_RATE: Rate = { capacity: 20, refillPerMinute: 60 };
+
 export class MockShopAAdapter implements ChannelAdapter {
   readonly kind = ChannelKind.mock_a;
   readonly batchLimit = BATCH_LIMIT;
+  readonly rate = MOCK_A_RATE;
 
   private readonly apiKey: string;
   private readonly webhookSecret: string;
   private readonly baseUrl: string;
+  private readonly limiter: Limiter;
 
-  constructor(credentials: ChannelCredentials) {
+  constructor(credentials: ChannelCredentials, limiter: Limiter = UNLIMITED) {
     // The seed writes both onto the channel row; the environment is the fallback
     // for a database seeded before a secret was rotated.
     this.apiKey = credential(credentials, 'apiKey', process.env.MOCK_A_API_KEY);
@@ -110,11 +126,15 @@ export class MockShopAAdapter implements ChannelAdapter {
       process.env.MOCK_A_WEBHOOK_SECRET,
     );
     this.baseUrl = appBaseUrl();
+    this.limiter = limiter;
   }
 
   private headers(): Record<string, string> {
     return { 'content-type': 'application/json', 'x-mockshop-key': this.apiKey };
   }
+
+  /** Spent before every request, so both of A's calls are paced identically. */
+  private readonly beforeAttempt = () => this.limiter.acquire();
 
   async pushCatalog(items: CatalogItem[]): Promise<BatchResult> {
     if (items.length > this.batchLimit) {
@@ -129,6 +149,7 @@ export class MockShopAAdapter implements ChannelAdapter {
     const body = await requestJson(LABEL, `${this.baseUrl}${CATALOG_PATH}`, {
       method: 'POST',
       headers: this.headers(),
+      beforeAttempt: this.beforeAttempt,
       body: JSON.stringify({
         items: items.map((item) => ({
           sku: item.sku,
@@ -166,7 +187,10 @@ export class MockShopAAdapter implements ChannelAdapter {
     const url = new URL(`${this.baseUrl}${ORDERS_PATH}`);
     if (cursor) url.searchParams.set('cursor', cursor);
 
-    const body = await requestJson(LABEL, url.toString(), { headers: this.headers() });
+    const body = await requestJson(LABEL, url.toString(), {
+      headers: this.headers(),
+      beforeAttempt: this.beforeAttempt,
+    });
     const page = orderListResponse.parse(body);
 
     return {

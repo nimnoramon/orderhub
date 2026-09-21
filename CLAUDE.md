@@ -25,8 +25,9 @@ src/server/          all business logic and the only code that touches the DB
   services/          products, stock, orders, channels, sync, dashboard
   orders/            state-machine.ts
   channels/          adapter.ts + one adapter per channel + registry
-  sync/              job runner, retry queue
-  ratelimit/         token bucket
+  sync/              job runner, retry queue, what is worth retrying
+  ratelimit/         token bucket (pure maths + Lua) and the limiter around it
+  redis/             client, key names, the in-process fallback, the cache
   http/              handler + error -> status mapping, in one place
 src/lib/             types, zod schemas, money and date helpers (shared both sides)
 src/mock/            the mock marketplaces' own internals — a third party, not us
@@ -66,7 +67,14 @@ is worse than not building the feature.
 7. **`app/` never imports `prisma`.** Route handlers and pages go through
    `src/server/services/*`. This is what keeps the honest answer to "why not
    NestJS?" true: the service layer would lift out unchanged.
-8. **An adapter and its mock share no contract.** `src/server/channels/*` must
+8. **Redis is never the system of record.** Everything in it — the token bucket,
+   the retry queue, the dashboard summary — is a schedule, a counter or a copy,
+   and losing all of it costs a re-push and a recomputed page. So the queue
+   holds SKUs and not catalog payloads (the variant is re-read from Postgres
+   when the retry runs), and every Redis call is wrapped so that an outage
+   degrades a feature instead of failing a request. Nothing writes a fact to
+   Redis that is not already a row.
+9. **An adapter and its mock share no contract.** `src/server/channels/*` must
    not import a schema, a type or a constant from `src/mock/*`, or the other way
    round — each restates the wire format, exactly as it would if the marketplace
    were a company with a PDF. Sharing a primitive both sides would have written
@@ -109,6 +117,13 @@ things an interviewer asks about next: `tests/catalog-batch.test.ts` (the
 per-item rules, the adapter reading a batch response, and all four outcomes of
 `statusForCounts`) and `tests/webhook-signature.test.ts` (sign/verify, wrong
 secret, altered body, replayed timestamp).
+
+Milestone 6 added two more, on the same terms — no database, and both about a
+rule rather than a wiring: `tests/token-bucket.test.ts` (refill, burst, the wait
+a caller is told to expect, and a simulation asserting that MockShop B's numbers
+cannot exceed its ten-a-minute limit in any sixty-second window) and
+`tests/retry-queue.test.ts` (which failures are worth repeating, the backoff
+schedule and its jitter, attempts counted across runs, and giving up).
 
 ## Commands
 

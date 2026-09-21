@@ -5,6 +5,7 @@ import type { WebhookEvent } from '@/server/channels/adapter';
 import { adapterFor } from '@/server/channels/registry';
 import { AppError, notFound } from '@/server/http/errors';
 import { ingestOrder, variantIdsBySku } from '@/server/orders/ingest';
+import { invalidateDashboard } from '@/server/services/dashboard';
 import { transitionOrder } from '@/server/services/orders';
 
 /**
@@ -163,7 +164,10 @@ async function apply(channel: Channel, event: WebhookEvent): Promise<WebhookRece
     event.order,
   );
 
-  return outcome === 'created'
-    ? { ...receipt, applied: 'created' }
-    : ignored('This order had already been recorded.');
+  if (outcome !== 'created') return ignored('This order had already been recorded.');
+
+  // A cancellation goes through transitionOrder, which drops the cache itself.
+  // A new order arrives here, and changes today's count.
+  await invalidateDashboard(channel.merchantId);
+  return { ...receipt, applied: 'created' };
 }

@@ -5,9 +5,9 @@ const MILESTONES = [
   { n: 1, title: 'Scaffold, schema, seed', done: true },
   { n: 2, title: 'Products and the stock ledger', done: true },
   { n: 3, title: 'Orders and the state machine', done: true },
-  { n: 4, title: 'MockShop A and the adapter interface', done: false },
-  { n: 5, title: 'MockShop B and idempotent order pull', done: false },
-  { n: 6, title: 'Rate limiting, retry queue, cached dashboard', done: false },
+  { n: 4, title: 'MockShop A and the adapter interface', done: true },
+  { n: 5, title: 'MockShop B and idempotent order pull', done: true },
+  { n: 6, title: 'Rate limiting, retry queue, cached dashboard', done: true },
   { n: 7, title: 'Overview dashboard and README', done: false },
 ];
 

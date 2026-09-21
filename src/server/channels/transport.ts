@@ -96,22 +96,35 @@ async function attempt(
  * Only 5xx and "no answer at all" are retried. A 429 is not — the channel has
  * just said it is being asked too often, and asking again 200ms later is the
  * one response guaranteed to be wrong. Backing off from a rate limit belongs to
- * the limiter that should have prevented it, which is milestone 6's token
- * bucket, not to this loop.
+ * the limiter that should have prevented it — `beforeAttempt` below.
+ *
+ * `beforeAttempt` runs before *every* attempt, the retries included. A retry is
+ * a request the channel counts like any other, and a limiter that only saw the
+ * first one would be describing traffic that is not the traffic being sent.
  */
 export async function requestJson(
   label: string,
   url: string,
-  init: RequestInit & { timeoutMs?: number; retries?: number } = {},
+  init: RequestInit & {
+    timeoutMs?: number;
+    retries?: number;
+    beforeAttempt?: () => Promise<void>;
+  } = {},
 ): Promise<unknown> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, retries = 0, ...rest } = init;
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, retries = 0, beforeAttempt, ...rest } = init;
 
   for (let tries = 0; ; tries += 1) {
     try {
+      await beforeAttempt?.();
       return await attempt(label, url, rest, timeoutMs);
     } catch (error) {
+      // Transport failures only. An AppError from `beforeAttempt` means the
+      // request was never sent because we are out of budget, and looping on
+      // that would spend the very wait the limiter just asked for.
       const retryable =
-        error instanceof ChannelHttpError ? error.status >= 500 : error instanceof AppError;
+        error instanceof ChannelHttpError
+          ? error.status >= 500
+          : error instanceof AppError && error.code === 'CHANNEL_ERROR';
       if (!retryable || tries >= retries) throw error;
       await sleep(BACKOFF_MS[Math.min(tries, BACKOFF_MS.length - 1)]);
     }

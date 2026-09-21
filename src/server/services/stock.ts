@@ -1,6 +1,7 @@
 import type { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/server/db';
 import { AppError, notFound } from '@/server/http/errors';
+import { invalidateDashboard } from '@/server/services/dashboard';
 import { deriveLevels, isLowStock, wouldGoNegative, type DeltaRow } from '@/server/stock/levels';
 import type { CreateMovementInput, StockLevelsQuery } from '@/lib/schemas/stock';
 import type {
@@ -205,7 +206,7 @@ export async function adjustStock(
   if (!variant) throw notFound('Variant');
   if (!warehouse) throw notFound('Warehouse');
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     // Without a qty column there is no row to lock, so the pair is locked by
     // name instead. Two adjustments against the same (variant, warehouse) now
     // serialise, which is what stops both of them reading 5 and both taking 3.
@@ -247,4 +248,9 @@ export async function adjustStock(
       level: { variantId: variant.id, warehouseId: warehouse.id, onHand, lowStock: isLowStock(onHand) },
     };
   });
+
+  // One adjustment can take a variant over or under the low-stock line, which
+  // is a number the overview shows.
+  await invalidateDashboard(merchantId);
+  return result;
 }

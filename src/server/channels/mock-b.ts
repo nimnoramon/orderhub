@@ -2,6 +2,8 @@ import { ChannelKind } from '@/generated/prisma/enums';
 import { appBaseUrl } from '@/lib/app-url';
 import { verifySignature, withinTolerance } from '@/lib/hmac';
 import { AppError } from '@/server/http/errors';
+import { UNLIMITED, type Limiter } from '@/server/ratelimit/limiter';
+import type { Rate } from '@/server/ratelimit/token-bucket';
 import {
   credential,
   type BatchResult,
@@ -44,16 +46,46 @@ const LABEL = 'MockShop B';
  */
 const RETRIES = 2;
 
+/**
+ * The pace we hold ourselves to, which is not the pace B advertises.
+ *
+ * B's documented limit is ten requests per minute, counted in a *fixed* window.
+ * A token bucket that started full and refilled inside that same window could
+ * spend `capacity + refill` requests in one of B's minutes, so the numbers are
+ * chosen to make that impossible:
+ *
+ *     capacity (6) + refillPerMinute (4) = 10 = B's limit
+ *
+ * Six is also enough for a whole order pull — three pages, plus the transport's
+ * retries when B throws one of its 500s — so the sync that runs on a schedule
+ * fits in a burst and the one a human clicks is the one that has to wait.
+ *
+ * A full catalog push does not fit, and deliberately so: roughly nine batches
+ * against a budget of six means the run ends `partial` with the remainder
+ * queued. Loosening these numbers to make one click finish the job would mean
+ * choosing to earn the 429s this milestone exists to avoid.
+ */
+export const MOCK_B_RATE: Rate = { capacity: 6, refillPerMinute: 4 };
+
 export class MockShopBAdapter implements ChannelAdapter {
   readonly kind = ChannelKind.mock_b;
   readonly batchLimit = BATCH_LIMIT;
+  readonly rate = MOCK_B_RATE;
 
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly webhookSecret: string;
   private readonly baseUrl: string;
+  private readonly limiter: Limiter;
 
-  constructor(credentials: ChannelCredentials) {
+  /**
+   * The limiter is injected rather than built here. The registry knows which
+   * channel row this adapter speaks for and therefore which bucket it spends
+   * from; the adapter only knows that something has to be asked before a
+   * request goes out. `UNLIMITED` is the default so a test can construct the
+   * adapter without infrastructure.
+   */
+  constructor(credentials: ChannelCredentials, limiter: Limiter = UNLIMITED) {
     this.clientId = credential(credentials, 'clientId', process.env.MOCK_B_CLIENT_ID);
     this.clientSecret = credential(credentials, 'clientSecret', process.env.MOCK_B_CLIENT_SECRET);
     this.webhookSecret = credential(
@@ -62,6 +94,7 @@ export class MockShopBAdapter implements ChannelAdapter {
       process.env.MOCK_B_WEBHOOK_SECRET,
     );
     this.baseUrl = appBaseUrl();
+    this.limiter = limiter;
   }
 
   private headers(): Record<string, string> {
@@ -70,14 +103,18 @@ export class MockShopBAdapter implements ChannelAdapter {
   }
 
   /**
-   * One call to B, with its 429 translated on the way out.
+   * One call to B: a token first, then the request, with its 429 translated on
+   * the way out.
    *
    * A rate limit is not a channel error: the request was fine, the channel is
    * fine, and the only thing wrong is the pace we set. Saying so with a distinct
    * code is what lets the sync log show "we were going too fast" rather than "the
-   * marketplace is broken", and gives milestone 6's token bucket something to
-   * point at when it explains why it exists. `retryAfterSeconds` travels with it
-   * because it is the one piece of advice worth keeping.
+   * marketplace is broken". `retryAfterSeconds` travels with it because it is
+   * the one piece of advice worth keeping.
+   *
+   * Since the limiter arrived, this branch is the one that should never be
+   * reached — a 429 from B now means our bucket and B's counter disagree, which
+   * is worth seeing in the log rather than smoothing over.
    */
   private async call(path: string, init: RequestInit = {}): Promise<unknown> {
     try {
@@ -85,6 +122,7 @@ export class MockShopBAdapter implements ChannelAdapter {
         ...init,
         headers: this.headers(),
         retries: RETRIES,
+        beforeAttempt: () => this.limiter.acquire(),
       });
     } catch (error) {
       if (error instanceof ChannelHttpError && error.status === 429) {

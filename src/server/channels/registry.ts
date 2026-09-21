@@ -1,7 +1,9 @@
 import { ChannelKind } from '@/generated/prisma/enums';
+import { channelLimiter, type Limiter } from '@/server/ratelimit/limiter';
+import type { Rate } from '@/server/ratelimit/token-bucket';
 import type { ChannelAdapter, ChannelCredentials } from './adapter';
-import { MockShopAAdapter } from './mock-a';
-import { MockShopBAdapter } from './mock-b';
+import { MOCK_A_RATE, MockShopAAdapter } from './mock-a';
+import { MOCK_B_RATE, MockShopBAdapter } from './mock-b';
 
 /**
  * Which kinds of channel have a connector, and how to build one.
@@ -14,10 +16,25 @@ import { MockShopBAdapter } from './mock-b';
  * this app, so there is nothing to push a catalog to and nothing to pull orders
  * from. The screens read that absence rather than special-casing the name.
  */
-const FACTORIES: Partial<Record<ChannelKind, (credentials: ChannelCredentials) => ChannelAdapter>> = {
-  [ChannelKind.mock_a]: (credentials) => new MockShopAAdapter(credentials),
-  [ChannelKind.mock_b]: (credentials) => new MockShopBAdapter(credentials),
+const FACTORIES: Partial<
+  Record<ChannelKind, (credentials: ChannelCredentials, limiter: Limiter) => ChannelAdapter>
+> = {
+  [ChannelKind.mock_a]: (credentials, limiter) => new MockShopAAdapter(credentials, limiter),
+  [ChannelKind.mock_b]: (credentials, limiter) => new MockShopBAdapter(credentials, limiter),
 };
+
+/**
+ * The pace each kind of channel is called at, readable without building an
+ * adapter. The Channels screen wants the numbers to show a request budget, and
+ * constructing a connector — which reads credentials and throws if one is
+ * missing — is far too much to do for a line of text on a page.
+ */
+const RATES: Partial<Record<ChannelKind, Rate>> = {
+  [ChannelKind.mock_a]: MOCK_A_RATE,
+  [ChannelKind.mock_b]: MOCK_B_RATE,
+};
+
+export const rateFor = (kind: ChannelKind): Rate | null => RATES[kind] ?? null;
 
 /**
  * Kinds this app is itself the source of truth for. Their absence from
@@ -36,11 +53,23 @@ export function connectorState(kind: ChannelKind): ConnectorState {
   return FIRST_PARTY.includes(kind) ? 'none' : 'planned';
 }
 
+/**
+ * The limiter is built here, from the channel's own id, because this is the
+ * only place that knows both which row we are speaking for and which rate its
+ * marketplace publishes. Two channel rows of the same kind get two buckets —
+ * the marketplace counts them as two clients, and so do we.
+ */
 export function adapterFor(channel: {
+  id: string;
   kind: ChannelKind;
   credentials: unknown;
 }): ChannelAdapter | null {
   const factory = FACTORIES[channel.kind];
-  if (!factory) return null;
-  return factory((channel.credentials ?? {}) as ChannelCredentials);
+  const rate = RATES[channel.kind];
+  if (!factory || !rate) return null;
+
+  return factory(
+    (channel.credentials ?? {}) as ChannelCredentials,
+    channelLimiter(channel.id, rate),
+  );
 }

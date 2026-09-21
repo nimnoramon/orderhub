@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatDateTime } from '@/lib/dates';
+import { formatDateTime, formatDuration } from '@/lib/dates';
 import { SyncStatusPill } from '@/components/ui/StatusPill';
 import { SyncButton } from '@/components/channels/SyncButton';
 import type { ChannelSummary, SyncJobItem } from '@/lib/types';
@@ -19,6 +19,31 @@ function LastRun({ job }: { job: SyncJobItem | null }) {
       <span className="text-neutral-400">
         {job.startedAt ? formatDateTime(job.startedAt) : '—'}
       </span>
+    </div>
+  );
+}
+
+/**
+ * What is waiting to be pushed again, and the button that does it.
+ *
+ * The queue is the visible half of the retry design, so an empty one says so
+ * rather than rendering nothing — "no items waiting" and "this feature does not
+ * exist" look identical otherwise, and only one of them is true.
+ */
+function RetryQueue({ channel, disabled }: { channel: ChannelSummary; disabled: boolean }) {
+  const { depth, nextDueAt } = channel.retryQueue;
+
+  if (depth === 0) {
+    return <p className={FACT}>Nothing queued for retry.</p>;
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <p className="text-xs text-amber-800">
+        {depth} item{depth === 1 ? '' : 's'} queued for retry
+        {nextDueAt && <> · next due {formatDateTime(nextDueAt)}</>}
+      </p>
+      <SyncButton channelId={channel.id} type="catalog_retry" disabled={disabled} />
     </div>
   );
 }
@@ -57,6 +82,7 @@ export function ChannelCard({ channel }: { channel: ChannelSummary }) {
             <div className="mt-1.5 flex flex-col gap-2">
               <LastRun job={channel.lastJobs.catalog_push} />
               <SyncButton channelId={channel.id} type="catalog_push" disabled={!syncable} />
+              <RetryQueue channel={channel} disabled={!syncable} />
             </div>
           </div>
 
@@ -96,6 +122,23 @@ export function ChannelCard({ channel }: { channel: ChannelSummary }) {
           Orders originate here, so there is no catalog to push and no feed to read. A channel
           without a connector is a deliberate case, not a missing one.
         </p>
+      )}
+
+      {channel.limiter && (
+        <footer className="border-t border-neutral-100 px-4 py-2 text-xs text-neutral-400">
+          {/* A token bucket in Redis, spent before every outbound call. Showing
+              what is left of it turns "we respect their rate limit" from a claim
+              in a README into a number on a screen. */}
+          Request budget{' '}
+          <span className="tabular-nums text-neutral-600">
+            {channel.limiter.remaining}/{channel.limiter.capacity}
+          </span>{' '}
+          tokens
+          {channel.limiter.nextTokenInMs > 0 && (
+            <> · next in {formatDuration(channel.limiter.nextTokenInMs)}</>
+          )}{' '}
+          — spent before every call, so this channel never has to answer 429.
+        </footer>
       )}
     </section>
   );

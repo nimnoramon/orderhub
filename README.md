@@ -132,7 +132,7 @@ POST /api/mock/b/hooks/dispatch             -> MockShop B: base64 signature, ms 
   *not* retry a 429: the channel has just said it is being asked too often, and
   asking again 200ms later is the one answer guaranteed to be wrong. That is
   recorded as `RATE_LIMITED` with the `Retry-After` it sent, and slowing down
-  before it happens is milestone 6's token bucket.
+  before it happens is the token bucket below.
 - **A webhook is trusted in three steps.** The verify token in the URL says this
   is a URL we handed out, the HMAC over `timestamp.body` says the channel really
   sent these bytes, and only then is the payload parsed. The body is read as
@@ -155,6 +155,71 @@ that enforces the real unique constraint: a page read twice writes 25 rows and
 then none, a page that only half wrote leaves the cursor alone and replays whole,
 and a rate-limited second page ends the run `partial` rather than `failed`.
 
+**Redis: pacing, retrying, and one cached read** — a token bucket per channel, a
+retry queue for catalog items, and a 60-second cache on the summary the overview
+screen will read.
+
+```
+POST /api/channels/:id/sync/retries         -> pushes only what the queue says is due
+GET  /api/dashboard/summary                 -> cached 60s, x-cache: HIT|MISS
+```
+
+- **A limiter that makes the retry queue necessary.** MockShop B allows ten
+  requests per fixed minute. A token bucket refills smoothly, so the only way one
+  stays inside a fixed window is `capacity + refillPerMinute <= limit` — B's
+  connector uses 6 + 4, and `tests/token-bucket.test.ts` drives the real
+  algorithm for two simulated hours to prove no sixty-second span ever holds
+  eleven. The honest consequence is that a full catalog push — about nine batches
+  — does not fit in one run's budget. Loosening the numbers so it would means
+  choosing to earn the 429s the limiter exists to avoid, so instead the run ends
+  `partial` and the items it never sent go to the queue. A token is spent before
+  every attempt, retries included, because a retry is a request the marketplace
+  counts like any other. MockShop A publishes no limit and gets a courtesy cap:
+  an undocumented limit is still a limit, and hammering the endpoint is how
+  integrations find out what it was.
+- **The queue holds references, not payloads.** A queued entry is a SKU and an
+  attempt count; when the retry runs, the variant is read from Postgres again at
+  its current title and price. Enqueuing the item itself would be faster and
+  would push a four-minute-old price because that is what the queue happened to
+  be holding. Redis owns the schedule, Postgres owns the truth.
+- **Only some failures are worth repeating.** A listing MockShop B rejected
+  because it does not carry that category will be rejected identically in fifteen
+  seconds, in thirty, and in four minutes. So the queue takes failures whose code
+  is *ours* — unreachable, 5xx, out of budget, our own bug — and leaves the
+  channel's per-item verdicts in the job's error list where a human can read
+  them. Backoff is 15s doubling to 4m with ±20% jitter, five attempts, then the
+  item is abandoned and the log says so. The delay is short because this is a
+  demo somebody clicks through; production would start at a minute.
+- **The retry run is a `catalog_push` with `attempt > 1`.** No new job type and
+  no new table: `SyncJob.attempt` has been in the schema since milestone 1 and
+  this is what it was for. A retry pushes only the due items, which is the whole
+  point — re-listing ninety items to fix three would spend the channel's entire
+  minute.
+- **The cache is dropped by four writes, not by a hook.** A status change, an
+  order arriving from a channel, a stock movement and a finished sync each
+  invalidate the summary, after the transaction rather than inside it. Four call
+  sites is a list a reader can check against the summary's own fields; a Prisma
+  middleware that fired on every write would drop the cache for changes that
+  alter none of these numbers and nobody could say why. The accepted race is
+  stated in the code: a read that missed can finish after the delete and store a
+  value computed before the change, for up to sixty seconds.
+- **Redis is never the system of record.** Every call is wrapped so that an
+  outage degrades a feature rather than failing a request — a limiter that cannot
+  reach Redis fails *open*, because the 429 path already exists and a Redis
+  outage stopping all syncing is the worse failure. With Upstash unconfigured,
+  all three features fall back to in-process state and say so once at startup,
+  so a fresh clone runs with nothing but a database. That fallback is correct for
+  one process and wrong for several, which is why the deployed demo has Upstash.
+
+Tested: `tests/token-bucket.test.ts` — refill in proportion to elapsed time,
+capacity as a ceiling, a clock that runs backwards, the wait a refused caller is
+told to expect and that waiting exactly that long is enough, and the
+sixty-second-window simulation above. `tests/retry-queue.test.ts` — which codes
+are worth retrying, the doubling and its jitter bounds, attempts counted across
+runs until the item is abandoned, a cleared item starting its backoff over, and
+due items handed back oldest first. Both run against the in-process fallback,
+which is the code path a fresh clone gets.
+
 The services, routes and UI around them are deliberately untested; the three
 suites that matter are listed in [CLAUDE.md](CLAUDE.md#testing) and arrive with
 the milestones they belong to.
@@ -172,16 +237,22 @@ pnpm db:seed                  # 50 products, 200 orders, 60 days of history
 pnpm dev
 ```
 
+Redis is optional locally. With `UPSTASH_REDIS_REST_URL` and
+`UPSTASH_REDIS_REST_TOKEN` unset, the rate limiter, the retry queue and the
+dashboard cache run on in-process state and log one warning — everything works,
+in one process. Set them (an [Upstash](https://upstash.com) free database takes a
+minute to create) to run the way the deployment does.
+
 Demo login: `demo@orderhub.dev` / `demo1234` — seeded and bcrypt-hashed, and
 printed on the landing page. Nothing asks for it yet: the sign-in screen arrives
 with the auth milestone and the dashboard is open until then.
 
 ## Deploy
 
-Vercel for the app, [Neon](https://neon.tech) for Postgres, both free tier. Neon
-runs two branches — `dev` for the laptop and `production` (Neon's default branch)
-for the deployed demo, region `ap-southeast-1`. Redis is not needed until
-milestone 6.
+Vercel for the app, [Neon](https://neon.tech) for Postgres and
+[Upstash](https://upstash.com) for Redis, all three free tier. Neon runs two
+branches — `dev` for the laptop and `production` (Neon's default branch) for the
+deployed demo, region `ap-southeast-1`.
 
 ### 1. Neon
 
@@ -213,6 +284,7 @@ without it fails at build rather than at runtime.
 |---|---|
 | `DATABASE_URL` | the pooled `production` connection string |
 | `DEMO_EMAIL`, `DEMO_PASSWORD` | the seeded login, printed on the landing page |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | the Upstash database's two values |
 
 The connector reaches the mock marketplaces over HTTP, so it needs to know the
 deployment's own origin. `APP_BASE_URL` sets it; left unset, it falls back to
@@ -224,9 +296,15 @@ rows, so they only matter if you intend to change them, and then the seed has to
 be run again. `WEBHOOK_VERIFY_TOKEN` is the token in the webhook URL each mock
 was given; both ends fall back to the same demo value.
 
-Everything else in `.env.example` belongs to milestone 6; leave it unset. The
-landing page is statically rendered, so changing either `DEMO_*` value needs a
-redeploy before the card on it catches up.
+The two Upstash values are the only ones without a usable default: unset, the
+deployment still runs, but its rate limiter and retry queue live inside whichever
+instance happened to answer, which is the same as not having them. One Upstash
+database serves production and every preview — keys are prefixed with
+`VERCEL_ENV`, so a preview branch cannot drain production's retry queue or hand
+it a stale summary.
+
+The landing page is statically rendered, so changing either `DEMO_*` value needs
+a redeploy before the card on it catches up.
 
 ### 4. Migrate and seed the production branch, from your laptop
 

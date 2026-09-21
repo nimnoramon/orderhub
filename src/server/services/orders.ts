@@ -4,6 +4,7 @@ import { prisma } from '@/server/db';
 import { AppError, notFound } from '@/server/http/errors';
 import { assertTransition, nextStatuses } from '@/server/orders/state-machine';
 import { listChannels } from '@/server/services/channels';
+import { invalidateDashboard } from '@/server/services/dashboard';
 import { listWarehouses, toDeltaRows } from '@/server/services/stock';
 import { deriveLevels } from '@/server/stock/levels';
 import { endOfUtcDayExclusive, startOfUtcDay } from '@/lib/dates';
@@ -336,6 +337,12 @@ export async function transitionOrder(
       await reverseSaleMovements(tx, id);
     }
   });
+
+  // After the commit, never inside it. A transaction that rolled back would
+  // otherwise have dropped a cache entry describing a change that did not
+  // happen — harmless here, but the habit is the point: the cache follows the
+  // database, and it cannot follow something that has not been written yet.
+  await invalidateDashboard(merchantId);
 
   return getOrder(merchantId, id);
 }

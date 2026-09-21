@@ -129,15 +129,28 @@ async function assertNotAlreadyRunning(channelId: string, type: SyncJobType): Pr
   }
 }
 
+/**
+ * `attempt` is 1 for a run somebody asked for and higher for one the retry queue
+ * asked for, which is the number the sync log prints beside a job. It is the
+ * column that has been sitting in the schema since milestone 1 waiting for a
+ * queue to give it a meaning.
+ */
 export async function runJob(
   channelId: string,
   type: SyncJobType,
   body: () => Promise<JobOutcome>,
+  options: { attempt?: number } = {},
 ): Promise<SyncJobItem> {
   await assertNotAlreadyRunning(channelId, type);
 
   const job = await prisma.syncJob.create({
-    data: { channelId, type, status: SyncJobStatus.running, startedAt: new Date(), attempt: 1 },
+    data: {
+      channelId,
+      type,
+      status: SyncJobStatus.running,
+      startedAt: new Date(),
+      attempt: options.attempt ?? 1,
+    },
     select: { id: true },
   });
 
