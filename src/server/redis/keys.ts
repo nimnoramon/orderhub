@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 /**
  * Every Redis key this app writes, spelled in one file.
  *
@@ -22,3 +24,16 @@ export const retryTriesKey = (channelId: string): string => `${prefix()}:retry:$
 
 /** The cached dashboard summary. One per merchant, because the data is. */
 export const dashboardKey = (merchantId: string): string => `${prefix()}:dash:${merchantId}`;
+
+/**
+ * Sign-in attempts from one address and one client. Hash of { tokens, ts }.
+ *
+ * The identity is hashed rather than spelled out. Every other key here is made
+ * of ids this app generated; this one would be made of an email and an IP, and
+ * Redis is the one store in this project that is not the system of record and
+ * not backed up — putting a list of who tried to sign in and from where into a
+ * cache is a thing to be asked about, not a thing to do by default. The digest
+ * is as unique as the identity, which is all the bucket needs.
+ */
+export const loginKey = (identity: string): string =>
+  `${prefix()}:login:${createHash('sha256').update(identity).digest('hex').slice(0, 16)}`;

@@ -9,6 +9,7 @@ const MILESTONES = [
   { n: 5, title: 'MockShop B and idempotent order pull', done: true },
   { n: 6, title: 'Rate limiting, retry queue, cached dashboard', done: true },
   { n: 7, title: 'Overview dashboard and README', done: true },
+  { n: 8, title: 'Sign-in, signed session cookie', done: true },
 ];
 
 export default function Home() {
@@ -53,12 +54,13 @@ export default function Home() {
           <dt className="text-neutral-400">password</dt>
           <dd className="font-mono text-xs">{login.password}</dd>
         </dl>
-        {/* The account is seeded and its password is bcrypt-hashed already; the
-            screen that asks for it is not built, so the dashboard is open. */}
+        {/* Printed, and also prefilled on the form itself. The account is real
+            — bcrypt hash, signed session cookie, throttled attempts — it is the
+            data behind it that is fictional. */}
         <p className="mt-2 text-xs text-neutral-500">
-          Nothing asks for these yet — the sign-in screen arrives with the auth milestone, and the
-          dashboard is open until then. They are printed here because this is a public portfolio
-          demo with fictional data, not a real merchant.
+          The sign-in form comes with these already typed in, so the way into a portfolio demo is
+          not a puzzle. They are safe to print because the merchant, the products and the orders
+          are invented; the login itself works like any other.
         </p>
       </div>
 

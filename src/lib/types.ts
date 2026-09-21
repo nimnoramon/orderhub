@@ -10,6 +10,14 @@ import type {
 /// The shapes that cross the server/client boundary. Money is integer minor
 /// units, dates are UTC ISO strings — both are formatted only when rendered.
 
+/** Who is signed in. The cookie carries only the id; the rest is read per request. */
+export type SessionUser = {
+  id: string;
+  email: string;
+  name: string;
+  merchantId: string;
+};
+
 export type Paginated<T> = {
   data: T[];
   page: { page: number; pageSize: number; total: number; pageCount: number };

@@ -1,6 +1,6 @@
 import { productListQuery } from '@/lib/schemas/products';
 import { cleanParams } from '@/lib/schemas/query';
-import { requireMerchantId } from '@/server/auth/session';
+import { requireSignedIn } from '@/server/auth/session';
 import { listProducts } from '@/server/services/products';
 import { ProductFilters } from '@/components/products/ProductFilters';
 import { ProductsTable } from '@/components/products/ProductsTable';
@@ -15,7 +15,7 @@ export default async function ProductsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const merchantId = await requireMerchantId();
+  const { merchantId } = await requireSignedIn();
   const params = cleanParams(await searchParams);
 
   // A hand-edited URL should degrade to the default view, not to an error page.

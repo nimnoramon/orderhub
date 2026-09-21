@@ -1,5 +1,5 @@
 import { formatDateTime } from '@/lib/dates';
-import { requireMerchantId } from '@/server/auth/session';
+import { requireSignedIn } from '@/server/auth/session';
 import { getDashboardSummary } from '@/server/services/dashboard';
 import { ChannelActivity } from '@/components/dashboard/ChannelActivity';
 import { RecentFailures } from '@/components/dashboard/RecentFailures';
@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
  * this screen is not one of them.
  */
 export default async function OverviewPage() {
-  const merchantId = await requireMerchantId();
+  const { merchantId } = await requireSignedIn();
   const { summary, cached, ttlSeconds } = await getDashboardSummary(merchantId);
 
   return (

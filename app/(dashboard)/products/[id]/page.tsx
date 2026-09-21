@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { formatDate } from '@/lib/dates';
-import { requireMerchantId } from '@/server/auth/session';
+import { requireSignedIn } from '@/server/auth/session';
 import { AppError } from '@/server/http/errors';
 import { getProduct } from '@/server/services/products';
 import { MovementsTable } from '@/components/stock/MovementsTable';
@@ -20,7 +20,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
-  const merchantId = await requireMerchantId();
+  const { merchantId } = await requireSignedIn();
   const { id } = await params;
 
   const product = await getProduct(merchantId, id).catch((error: unknown) => {

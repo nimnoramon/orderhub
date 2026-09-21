@@ -1,6 +1,6 @@
 import { orderListQuery } from '@/lib/schemas/orders';
 import { cleanParams } from '@/lib/schemas/query';
-import { requireMerchantId } from '@/server/auth/session';
+import { requireSignedIn } from '@/server/auth/session';
 import { listOrders } from '@/server/services/orders';
 import { OrderFilters } from '@/components/orders/OrderFilters';
 import { OrdersTable } from '@/components/orders/OrdersTable';
@@ -15,7 +15,7 @@ export default async function OrdersPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const merchantId = await requireMerchantId();
+  const { merchantId } = await requireSignedIn();
   const params = cleanParams(await searchParams);
 
   // A hand-edited URL degrades to the default view rather than an error page.

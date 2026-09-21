@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { formatDateTime } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
-import { requireMerchantId } from '@/server/auth/session';
+import { requireSignedIn } from '@/server/auth/session';
 import { AppError } from '@/server/http/errors';
 import { getOrder } from '@/server/services/orders';
 import { OrderItemsTable } from '@/components/orders/OrderItemsTable';
@@ -22,7 +22,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
-  const merchantId = await requireMerchantId();
+  const { merchantId } = await requireSignedIn();
   const { id } = await params;
 
   const order = await getOrder(merchantId, id).catch((error: unknown) => {

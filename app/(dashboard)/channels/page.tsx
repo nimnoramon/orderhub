@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireMerchantId } from '@/server/auth/session';
+import { requireSignedIn } from '@/server/auth/session';
 import { listChannelSummaries } from '@/server/services/channels';
 import { ChannelCard } from '@/components/channels/ChannelCard';
 
@@ -7,7 +7,7 @@ import { ChannelCard } from '@/components/channels/ChannelCard';
 export const dynamic = 'force-dynamic';
 
 export default async function ChannelsPage() {
-  const merchantId = await requireMerchantId();
+  const { merchantId } = await requireSignedIn();
   const channels = await listChannelSummaries(merchantId);
 
   return (

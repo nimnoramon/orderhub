@@ -167,12 +167,17 @@ describe('the queue', () => {
     const channel = 'ch-order';
     const at = Date.now();
 
-    // Enqueued at different times, so their due times are ordered too.
+    // Enqueued far enough apart that their due times are ordered whatever the
+    // jitter does. A first attempt is due in 15s ±20%, a window 6s wide, so
+    // anything closer together than that is a test that passes most of the time
+    // — which is worse than one that fails.
     await enqueueFailures(channel, [failure('AUD-5001-SLATE', 'CHANNEL_ERROR')], at);
-    await enqueueFailures(channel, [failure('LGT-5002-2700K', 'CHANNEL_ERROR')], at + 5_000);
-    await enqueueFailures(channel, [failure('PWR-5003-10000MAH', 'CHANNEL_ERROR')], at + 10_000);
+    await enqueueFailures(channel, [failure('LGT-5002-2700K', 'CHANNEL_ERROR')], at + 10_000);
+    await enqueueFailures(channel, [failure('PWR-5003-10000MAH', 'CHANNEL_ERROR')], at + 20_000);
 
-    const due = await dueItems(channel, 2, at + RETRY_BASE_MS * 2);
+    // Late enough that all three are due, so the two that come back are the two
+    // that were asked for and not the only two there were.
+    const due = await dueItems(channel, 2, at + RETRY_BASE_MS * 4);
     expect(due.length).toBe(2);
     expect(due[0].ref).toBe('AUD-5001-SLATE');
 

@@ -22,7 +22,8 @@ app/                 routes and API routes only
   api/**/route.ts    parse -> authenticate -> call a service -> map to HTTP
   api/mock/a|b/      the mock marketplaces, same app, deliberately awkward
 src/server/          all business logic and the only code that touches the DB
-  services/          products, stock, orders, channels, sync, dashboard
+  services/          products, stock, orders, channels, sync, dashboard, auth
+  auth/              the session cookie, and the seam every page/route goes through
   orders/            state-machine.ts
   channels/          adapter.ts + one adapter per channel + registry
   sync/              job runner, retry queue, what is worth retrying
@@ -125,6 +126,12 @@ cannot exceed its ten-a-minute limit in any sixty-second window) and
 `tests/retry-queue.test.ts` (which failures are worth repeating, the backoff
 schedule and its jitter, attempts counted across runs, and giving up).
 
+Milestone 8 added `tests/session-cookie.test.ts`, on the same terms: forging a
+payload, a signature from another secret, a signature lifted from another
+cookie, expiry to the second, and a malformed cookie reading as signed out
+rather than throwing. The route handlers, the form and the redirects around it
+are untested, like every other wiring in this project.
+
 ## Commands
 
 ```bash
@@ -148,9 +155,13 @@ that already contains a `partial` run.
 
 ## Not in scope
 
-Real payments, multi-tenancy beyond the `merchantId` column, production auth
-(one seeded demo login, bcrypt, signed cookie), and a separate API service. Each
-gets a line in the README explaining why, rather than being quietly missing.
+Real payments, multi-tenancy beyond the `merchantId` column, and a separate API
+service. Each gets a line in the README explaining why, rather than being
+quietly missing.
+
+Auth itself is built as of milestone 8 — one seeded login, bcrypt, a signed
+cookie, a throttle. What stays out is everything around it: sign-up, password
+reset, a second factor, roles, and server-side revocation.
 
 ## Working agreement
 

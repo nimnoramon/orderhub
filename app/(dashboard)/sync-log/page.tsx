@@ -1,6 +1,6 @@
 import { cleanParams } from '@/lib/schemas/query';
 import { syncJobListQuery } from '@/lib/schemas/sync';
-import { requireMerchantId } from '@/server/auth/session';
+import { requireSignedIn } from '@/server/auth/session';
 import { listSyncJobs } from '@/server/services/sync';
 import { SyncJobFilters } from '@/components/sync/SyncJobFilters';
 import { SyncJobsTable } from '@/components/sync/SyncJobsTable';
@@ -15,7 +15,7 @@ export default async function SyncLogPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const merchantId = await requireMerchantId();
+  const { merchantId } = await requireSignedIn();
   const params = cleanParams(await searchParams);
 
   // A hand-edited URL degrades to the default view rather than an error page.

@@ -54,6 +54,15 @@ request budget.
 **Sync log** (`/sync-log`) — every run, `partial` included, with the per-item
 failures expandable in place.
 
+**Sign-in** (`/login`) — one seeded account, bcrypt, and a signed cookie that
+carries an id and an expiry and nothing else. The form arrives with the demo
+credentials already in it, because the password is printed in this README and
+making a reviewer type it buys nobody anything. What is behind it is real: five
+attempts a minute through the same token bucket that paces the marketplaces, a
+user row read on every request rather than trusted from the cookie, and one
+function — `requireSignedIn()` for a page, `requireMerchantId()` for a route —
+that every screen and endpoint already went through before any of this existed.
+
 ```
 GET  /api/products?query=&status=&page=     POST /api/products
 GET  /api/products/:id
@@ -69,6 +78,8 @@ POST /api/channels/:id/sync/orders          -> reads the feed, answers with the 
 POST /api/channels/:id/sync/retries         -> pushes only what the queue says is due
 GET  /api/sync-jobs?channelId=&status=&type=&page=
 GET  /api/dashboard/summary                 -> cached 60s, x-cache: HIT|MISS
+POST /api/auth/login                        -> 401 on a wrong password, 429 after five
+POST /api/auth/logout
 POST /api/webhooks/:kind?token=             -> verify token, then signature, then apply
 
 POST /api/mock/a/catalog/batch              -> MockShop A: <=50 items, per-item results
@@ -385,7 +396,7 @@ the system, and the invalidation would be the bug.
 
 ## What is tested, and what is not
 
-Eight suites, no database and no network in any of them. Each one covers a rule
+Nine suites, no database and no network in any of them. Each one covers a rule
 that would be expensive to get wrong, which is a different thing from covering
 the code that happens to exist.
 
@@ -399,6 +410,7 @@ the code that happens to exist.
 | `webhook-signature` | sign/verify round trip, wrong secret, a body changed by one character, a signature moved to a fresh timestamp |
 | `token-bucket` | refill in proportion to elapsed time, capacity as a ceiling, a clock that runs backwards, the wait a refused caller is told to expect, and the sixty-second-window simulation |
 | `retry-queue` | which codes are worth retrying, the doubling and its jitter bounds, attempts counted across runs until an item is abandoned |
+| `session-cookie` | a payload edited after signing, a signature from another secret, a signature lifted from another cookie, expiry to the second, and that a missing or malformed cookie reads as signed out rather than throwing |
 
 The services, the route handlers and the UI are deliberately untested. They are
 wiring — parse, call, map — and the parts they wire together are the eight suites
@@ -437,11 +449,13 @@ service takes one as its first argument, so the column that real isolation would
 be built on is there. Row-level security, per-tenant connection routing and the
 migration story that comes with them are a project of their own.
 
-**Production auth.** There is one seeded demo login with a bcrypt hash, and
-`requireMerchantId()` is the seam a signed-cookie read drops into — one file,
-with no route or service moving. Until that milestone the dashboard is open,
-which is the right default for a public demo of fictional data and the wrong one
-for anything else.
+**Account management.** Signing in is built and is not a toy — bcrypt, a signed
+httpOnly cookie, a throttle, the user row read on every request. What is absent
+is everything around it: there is no sign-up, no password reset, no second
+factor, no roles, and no way to end somebody else's session except by deleting
+their user. The demo has one account, so none of that would have been exercised
+by anything; each of them is a decision with real alternatives and would deserve
+building properly rather than sketching.
 
 **A separate API service.** The route handlers are thin and the services below
 them have no Next.js in their imports, so the extraction is mechanical if the
@@ -474,9 +488,13 @@ dashboard cache run on in-process state and log one warning — everything works
 in one process. Set them (an [Upstash](https://upstash.com) free database takes a
 minute to create) to run the way the deployment does.
 
-Demo login: `demo@orderhub.dev` / `demo1234` — seeded and bcrypt-hashed, and
-printed on the landing page. Nothing asks for it yet: the sign-in screen arrives
-with the auth milestone and the dashboard is open until then.
+Demo login: `demo@orderhub.dev` / `demo1234` — seeded and bcrypt-hashed, printed
+on the landing page and already filled into the sign-in form.
+
+`SESSION_SECRET` signs the session cookie. Unset locally it falls back to a
+constant so a fresh clone runs, the way the Redis features fall back to memory;
+in production it is required and the app refuses to start without it, because a
+well-known signing key is not a degraded feature.
 
 ## Deploy
 
@@ -515,6 +533,7 @@ without it fails at build rather than at runtime.
 |---|---|
 | `DATABASE_URL` | the pooled `production` connection string |
 | `DEMO_EMAIL`, `DEMO_PASSWORD` | the seeded login, printed on the landing page |
+| `SESSION_SECRET` | any long random string — signs the session cookie, and the deployment will not serve a page without it |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | the Upstash database's two values |
 
 The connector reaches the mock marketplaces over HTTP, so it needs to know the
@@ -527,9 +546,13 @@ rows, so they only matter if you intend to change them, and then the seed has to
 be run again. `WEBHOOK_VERIFY_TOKEN` is the token in the webhook URL each mock
 was given; both ends fall back to the same demo value.
 
-The two Upstash values are the only ones without a usable default: unset, the
-deployment still runs, but its rate limiter and retry queue live inside whichever
-instance happened to answer, which is the same as not having them. One Upstash
+Two of these have no usable default, in two different ways. `SESSION_SECRET` is
+the strict one: missing in production it throws, and every page 500s rather than
+signing cookies with a key that is in a public repository. The Upstash pair is
+the lenient one — unset, the deployment still runs, but its rate limiter and
+retry queue live inside whichever instance happened to answer, which is the same
+as not having them. The difference is the point: a missing cache degrades a
+feature, and a missing signing key is a way in. One Upstash
 database serves production and every preview — keys are prefixed with
 `VERCEL_ENV`, so a preview branch cannot drain production's retry queue or hand
 it a stale summary.

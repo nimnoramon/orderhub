@@ -1,7 +1,7 @@
 import { AppError } from '@/server/http/errors';
 import { redis, tolerant } from '@/server/redis/client';
 import { memoryBuckets } from '@/server/redis/memory';
-import { bucketKey } from '@/server/redis/keys';
+import { bucketKey, loginKey } from '@/server/redis/keys';
 import type { LimiterState } from '@/lib/types';
 import {
   TAKE_SCRIPT,
@@ -106,9 +106,15 @@ async function readBucket(key: string, rate: Rate, now: number): Promise<BucketS
   return refill({ tokens, updatedAt }, rate, now);
 }
 
-export function channelLimiter(channelId: string, rate: Rate): Limiter {
-  const key = bucketKey(channelId);
+/**
+ * What to throw when the bucket is empty. It is a parameter because the two
+ * things this limiter paces fail for different readers: a refused sync is a
+ * sentence the sync log will keep, and a refused sign-in is a sentence a person
+ * reads under a form. Same arithmetic, same Redis call, different apology.
+ */
+type Refusal = (waitMs: number, rate: Rate) => AppError;
 
+function limiterFor(key: string, rate: Rate, refuse: Refusal): Limiter {
   return {
     async acquire(): Promise<void> {
       for (let attempt = 1; ; attempt += 1) {
@@ -116,15 +122,7 @@ export function channelLimiter(channelId: string, rate: Rate): Limiter {
         if (result.ok) return;
 
         if (result.waitMs > MAX_WAIT_MS || attempt >= MAX_ATTEMPTS) {
-          // Not a channel failure — the channel has not been asked. Saying
-          // RATE_LIMITED rather than CHANNEL_ERROR is what lets the sync log
-          // distinguish "we paced ourselves" from "the marketplace is down",
-          // and what tells the retry queue this item is worth another go.
-          throw new AppError(
-            'RATE_LIMITED',
-            `This channel's request budget is spent; the next token is ${Math.ceil(result.waitMs / 1000)}s away.`,
-            { waitMs: result.waitMs, capacity: rate.capacity },
-          );
+          throw refuse(result.waitMs, rate);
         }
 
         await sleep(result.waitMs);
@@ -144,6 +142,45 @@ export function channelLimiter(channelId: string, rate: Rate): Limiter {
       };
     },
   };
+}
+
+export function channelLimiter(channelId: string, rate: Rate): Limiter {
+  return limiterFor(
+    bucketKey(channelId),
+    rate,
+    // Not a channel failure — the channel has not been asked. Saying
+    // RATE_LIMITED rather than CHANNEL_ERROR is what lets the sync log
+    // distinguish "we paced ourselves" from "the marketplace is down", and what
+    // tells the retry queue this item is worth another go.
+    (waitMs) =>
+      new AppError(
+        'RATE_LIMITED',
+        `This channel's request budget is spent; the next token is ${Math.ceil(waitMs / 1000)}s away.`,
+        { waitMs, capacity: rate.capacity },
+      ),
+  );
+}
+
+/**
+ * Five attempts, refilling five a minute, per address and client.
+ *
+ * Small enough to be worth having and large enough that a person who typed
+ * their password wrong twice is not locked out of a demo. It is the same bucket
+ * the marketplaces are paced with, which is the point: a limiter built around
+ * one caller would have had to be written a second time for this.
+ */
+export const LOGIN_RATE: Rate = { capacity: 5, refillPerMinute: 5 };
+
+export function loginLimiter(identity: string): Limiter {
+  return limiterFor(
+    loginKey(identity),
+    LOGIN_RATE,
+    (waitMs) =>
+      new AppError(
+        'RATE_LIMITED',
+        `Too many sign-in attempts. Try again in ${Math.ceil(waitMs / 1000)}s.`,
+      ),
+  );
 }
 
 /**
