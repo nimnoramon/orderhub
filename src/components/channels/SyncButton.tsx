@@ -4,28 +4,57 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { SyncJobItem } from '@/lib/types';
+import type { SyncJobType } from '@/generated/prisma/enums';
 
 /**
- * Starts a catalog push and says what came back.
+ * Starts a sync and says what came back.
  *
  * The endpoint answers with the finished job for every outcome it managed to
  * record, so the interesting case is not the error path — it is a 200 whose body
  * says `partial`. Reporting that as a success would hide exactly the thing this
  * screen exists to show, so the summary below reads the job's own status rather
  * than the HTTP one.
+ *
+ * One component for both syncs because they differ only in wording: the two
+ * would otherwise drift into disagreeing about what a partial run looks like.
  */
-export function SyncCatalogButton({ channelId, disabled }: { channelId: string; disabled?: boolean }) {
+const SYNCS = {
+  catalog_push: {
+    path: 'catalog',
+    idle: 'Sync catalog',
+    busy: 'Pushing…',
+    summary: (job: SyncJobItem) => `${job.itemsOk} accepted, ${job.itemsFailed} rejected`,
+  },
+  order_pull: {
+    path: 'orders',
+    idle: 'Pull orders',
+    busy: 'Reading…',
+    summary: (job: SyncJobItem) => `${job.itemsOk} orders read, ${job.itemsFailed} failed`,
+  },
+} as const satisfies Record<SyncJobType, unknown>;
+
+export function SyncButton({
+  channelId,
+  type,
+  disabled,
+}: {
+  channelId: string;
+  type: SyncJobType;
+  disabled?: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<SyncJobItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const copy = SYNCS[type];
 
   async function run() {
     setBusy(true);
     setError(null);
     setJob(null);
 
-    const response = await fetch(`/api/channels/${channelId}/sync/catalog`, { method: 'POST' });
+    const response = await fetch(`/api/channels/${channelId}/sync/${copy.path}`, { method: 'POST' });
     const body = await response.json().catch(() => null);
 
     if (!response.ok) {
@@ -53,12 +82,12 @@ export function SyncCatalogButton({ channelId, disabled }: { channelId: string; 
         disabled={disabled || busy}
         className="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
       >
-        {busy ? 'Pushing…' : 'Sync catalog'}
+        {busy ? copy.busy : copy.idle}
       </button>
 
       {job && (
         <p className={`text-xs ${tone}`}>
-          {job.status} — {job.itemsOk} accepted, {job.itemsFailed} rejected.{' '}
+          {job.status} — {copy.summary(job)}.{' '}
           <Link href="/sync-log" className="underline underline-offset-2">
             Open the log
           </Link>

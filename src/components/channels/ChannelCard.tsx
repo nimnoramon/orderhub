@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { formatDateTime } from '@/lib/dates';
 import { SyncStatusPill } from '@/components/ui/StatusPill';
-import { SyncCatalogButton } from '@/components/channels/SyncCatalogButton';
+import { SyncButton } from '@/components/channels/SyncButton';
 import type { ChannelSummary, SyncJobItem } from '@/lib/types';
 
 const FACT = 'text-xs text-neutral-400';
@@ -56,7 +56,7 @@ export function ChannelCard({ channel }: { channel: ChannelSummary }) {
             <p className={FACT}>Catalog push</p>
             <div className="mt-1.5 flex flex-col gap-2">
               <LastRun job={channel.lastJobs.catalog_push} />
-              <SyncCatalogButton channelId={channel.id} disabled={!syncable} />
+              <SyncButton channelId={channel.id} type="catalog_push" disabled={!syncable} />
             </div>
           </div>
 
@@ -65,18 +65,12 @@ export function ChannelCard({ channel }: { channel: ChannelSummary }) {
             <div className="mt-1.5 flex flex-col gap-2">
               <LastRun job={channel.lastJobs.order_pull} />
               <div className="flex flex-col items-start gap-1.5">
-                <button
-                  type="button"
-                  disabled
-                  title="Idempotent order pull arrives in milestone 5"
-                  className="cursor-not-allowed rounded-md border border-neutral-200 px-3 py-1.5 text-sm text-neutral-300"
-                >
-                  Pull orders
-                </button>
+                <SyncButton channelId={channel.id} type="order_pull" disabled={!syncable} />
                 <p className="text-xs text-neutral-400">
-                  {/* The cursor is already stored and already seeded; what is missing
-                      is the write path that may only advance it once a page has
-                      committed. Showing it now makes that step visible. */}
+                  {/* The cursor moves only once a whole page has been written, so
+                      what it says here is where the next run will start — and
+                      clicking twice reads the same page again rather than
+                      skipping one. */}
                   Cursor{' '}
                   <span className="font-mono text-neutral-500">{channel.cursor ?? 'none'}</span> ·
                   last read{' '}
@@ -89,9 +83,8 @@ export function ChannelCard({ channel }: { channel: ChannelSummary }) {
       ) : channel.connector === 'planned' ? (
         <div className="px-4 py-4">
           <p className="text-sm text-neutral-500">
-            The {channel.name} connector arrives in milestone 5 — a second adapter behind the same
-            interface, with its own field names, its own date format and a rate limit to respect.
-            Its orders below were seeded so the rest of the app has two channels to reason about.
+            This marketplace has no adapter yet, so there is nothing to push to it and no feed to
+            read. Its orders were seeded so the rest of the app has something to show.
           </p>
           <p className="mt-2 text-xs text-neutral-400">
             Cursor <span className="font-mono text-neutral-500">{channel.cursor ?? 'none'}</span> ·

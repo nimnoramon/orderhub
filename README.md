@@ -66,17 +66,24 @@ Tested: `tests/order-state-machine.test.ts` — every legal transition, and all 
 status pairs asserted against a hand-written list, so no illegal move can be
 introduced by widening the table.
 
-**Channels & catalog sync** (`/channels`, `/sync-log`) — the first marketplace
-connector, the interface behind it, and the log every run lands in.
+**Channels, sync and webhooks** (`/channels`, `/sync-log`) — two marketplace
+connectors behind one interface, catalog push, idempotent order pull, the webhook
+receiver, and the log every run lands in.
 
 ```
 GET  /api/channels
 POST /api/channels/:id/sync/catalog         -> runs the push, answers with the job
+POST /api/channels/:id/sync/orders          -> reads the feed, answers with the job
 GET  /api/sync-jobs?channelId=&status=&type=&page=
+POST /api/webhooks/:kind?token=             -> verify token, then signature, then apply
 
 POST /api/mock/a/catalog/batch              -> MockShop A: <=50 items, per-item results
 GET  /api/mock/a/orders?cursor=&limit=      -> MockShop A: cursor-paginated feed
 POST /api/mock/a/webhooks/send              -> MockShop A: an HMAC-signed delivery
+
+POST /api/mock/b/listing/upsert             -> MockShop B: <=10 listings, answered in groups
+GET  /api/mock/b/order/list?page_token=     -> MockShop B: a feed read by watermark
+POST /api/mock/b/hooks/dispatch             -> MockShop B: base64 signature, ms timestamp
 ```
 
 - **`partial` is a first-class outcome.** A batch API fails per item, not per
@@ -97,16 +104,56 @@ POST /api/mock/a/webhooks/send              -> MockShop A: an HMAC-signed delive
   channel returns rather than casting it — a channel is the one input that is
   neither the user nor us.
 - **The fake is deterministic.** Which SKUs MockShop A rejects is a hash of the
-  SKU, and order *n* of its feed is always the same order, so the sync log is
+  SKU, and order *n* of either feed is always the same order, so the sync log is
   reproducible, the screenshots stay true, and re-reading a cursor returns what
-  it returned before — which is what will make milestone 5's idempotency test
-  mean something.
+  it returned before — which is what makes the idempotency test mean something.
+- **Two marketplaces, one interface, nothing shared.** MockShop B disagrees with
+  A about everything an integration can disagree about: Basic auth instead of a
+  key header, `order_reference` instead of `id`, `17/09/2026 22:00:00` in
+  Singapore time instead of ISO UTC, `"349.70"` instead of `34970`, ten listings
+  a call instead of fifty, answers grouped into accepted and rejected instead of
+  one result per item, and a feed paginated by watermark instead of by an opaque
+  id. All of it stops in `src/server/channels/mock-b-mapping.ts`; the service
+  above calls the same four methods and cannot tell the two channels apart. The
+  adapter and the mock share no schema, no type and no constant — each restates
+  the wire format, exactly as it would if B were a company with a PDF.
+- **Idempotency is the database's job.** Re-pulling a page must not create a
+  second copy of an order, and the guard is `unique(channelId, externalId)` plus
+  an insert that treats a `P2002` as "already have it" — never a `findFirst` then
+  a `create`, where two concurrent pulls both see nothing and both insert. The
+  cursor is the other half: it advances only once a whole page has been written,
+  so a run that dies mid-page reads that page again rather than stepping over the
+  orders it never wrote. At-least-once delivery is safe only because both halves
+  are there.
+- **A rate limit and a flaky 500 are different problems.** MockShop B fails
+  roughly one call in twenty and refuses more than ten a minute. The transport
+  retries a 5xx twice, with backoff, on the two calls the channel documents as
+  safe to repeat — so the 500 never reaches the sync log. It deliberately does
+  *not* retry a 429: the channel has just said it is being asked too often, and
+  asking again 200ms later is the one answer guaranteed to be wrong. That is
+  recorded as `RATE_LIMITED` with the `Retry-After` it sent, and slowing down
+  before it happens is milestone 6's token bucket.
+- **A webhook is trusted in three steps.** The verify token in the URL says this
+  is a URL we handed out, the HMAC over `timestamp.body` says the channel really
+  sent these bytes, and only then is the payload parsed. The body is read as
+  text, never re-serialised — signing a re-encoded object passes locally, where
+  both ends are the same JSON encoder, and fails against every real marketplace.
+  Delivery that cannot be applied — a cancellation of an order already shipped —
+  is answered `200` with a reason, because a 4xx would make the channel redeliver
+  it every few minutes for a day.
 
 Tested: `tests/catalog-batch.test.ts` — the per-item rules, the adapter's reading
 of a batch response over a stubbed transport, and all four outcomes of the status
 rule. `tests/webhook-signature.test.ts` — sign/verify round trip, wrong secret,
 a body changed by one character, a signature moved to a fresh timestamp, and the
 adapter verifying a delivery the mock actually signed.
+`tests/channel-mapping.test.ts` — MockShop B's dates across the date boundary and
+in the day/month order it invites getting wrong, its decimal money without a
+float in sight, its grouped batch answer, and a listing it never answered for.
+`tests/order-pull-idempotency.test.ts` — the real ingest path against a fake table
+that enforces the real unique constraint: a page read twice writes 25 rows and
+then none, a page that only half wrote leaves the cursor alone and replays whole,
+and a rate-limited second page ends the run `partial` rather than `failed`.
 
 The services, routes and UI around them are deliberately untested; the three
 suites that matter are listed in [CLAUDE.md](CLAUDE.md#testing) and arrive with
@@ -170,12 +217,14 @@ without it fails at build rather than at runtime.
 The connector reaches the mock marketplaces over HTTP, so it needs to know the
 deployment's own origin. `APP_BASE_URL` sets it; left unset, it falls back to
 Vercel's per-deployment `VERCEL_URL`, which is what you want on a preview so it
-talks to itself rather than to production. `MOCK_A_API_KEY` and
-`MOCK_A_WEBHOOK_SECRET` default to the values the seed writes onto the channel
-row, so they only matter if you intend to change them — and then the seed has to
-be run again.
+talks to itself rather than to production. The mock marketplaces' credentials —
+`MOCK_A_API_KEY`, `MOCK_B_CLIENT_ID`, `MOCK_B_CLIENT_SECRET` and the two
+`*_WEBHOOK_SECRET`s — default to the values the seed writes onto the channel
+rows, so they only matter if you intend to change them, and then the seed has to
+be run again. `WEBHOOK_VERIFY_TOKEN` is the token in the webhook URL each mock
+was given; both ends fall back to the same demo value.
 
-Everything else in `.env.example` belongs to milestones 5–6; leave it unset. The
+Everything else in `.env.example` belongs to milestone 6; leave it unset. The
 landing page is statically rendered, so changing either `DEMO_*` value needs a
 redeploy before the card on it catches up.
 

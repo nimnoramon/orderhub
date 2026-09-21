@@ -4,17 +4,26 @@ import { prisma } from '@/server/db';
 import { AppError, notFound } from '@/server/http/errors';
 import type { CatalogItem, ChannelAdapter } from '@/server/channels/adapter';
 import { adapterFor, connectorState } from '@/server/channels/registry';
+import { variantIdsBySku, type IngestContext } from '@/server/orders/ingest';
+import { readPages } from '@/server/orders/pull';
 import { jobSelect, mapSyncJob, runJob } from '@/server/sync/runner';
 import { listChannels } from '@/server/services/channels';
 import type { SyncJobListQuery } from '@/lib/schemas/sync';
 import type { SyncFailure, SyncJobItem, SyncJobsPage } from '@/lib/types';
 
 /**
- * Catalog push, and reading back what happened.
+ * Catalog push, order pull, and reading back what happened.
  *
  * The service owns the decisions that are OrderHub's: which variants are worth
- * sending, how to split them, and what a run's counts mean. The adapter owns the
- * channel's dialect. Neither knows anything about HTTP status codes.
+ * sending, how to split them, how far a single run may read, and what a run's
+ * counts mean. The adapter owns the channel's dialect. Neither knows anything
+ * about HTTP status codes.
+ *
+ * The two syncs count different things, and both counts are honest. A catalog
+ * push counts listings, and `itemsOk + itemsFailed` is the catalog. An order
+ * pull counts orders that landed — new ones and ones we already had, because
+ * both mean the feed was read successfully — against orders that could not be
+ * written and pages that could not be fetched.
  */
 
 /**
@@ -83,10 +92,16 @@ async function pushInBatches(adapter: ChannelAdapter, items: CatalogItem[]) {
   return { itemsOk, failures };
 }
 
-export async function pushCatalog(merchantId: string, channelId: string): Promise<SyncJobItem> {
+/**
+ * The channel a sync was asked for, and the connector that speaks to it — or the
+ * reason there is not going to be a job at all. Both kinds of sync ask the same
+ * four questions, and a second copy of them would be a second chance to phrase
+ * the refusal differently.
+ */
+async function syncableChannel(merchantId: string, channelId: string) {
   const channel = await prisma.channel.findFirst({
     where: { id: channelId, merchantId },
-    select: { id: true, name: true, kind: true, credentials: true, isActive: true },
+    select: { id: true, name: true, kind: true, credentials: true, isActive: true, cursor: true },
   });
   if (!channel) throw notFound('Channel');
 
@@ -106,8 +121,55 @@ export async function pushCatalog(merchantId: string, channelId: string): Promis
     );
   }
 
+  return { channel, adapter };
+}
+
+export async function pushCatalog(merchantId: string, channelId: string): Promise<SyncJobItem> {
+  const { channel, adapter } = await syncableChannel(merchantId, channelId);
+
   const items = await catalogItems(merchantId);
   return runJob(channel.id, SyncJobType.catalog_push, () => pushInBatches(adapter, items));
+}
+
+/**
+ * Read as much of the channel's order feed as one run is allowed to.
+ *
+ * The service's share of the work is small on purpose: it decides which channel,
+ * builds the SKU index, and owns the one write that may move the cursor. How the
+ * pages are walked and when the cursor may move is `src/server/orders/pull.ts`,
+ * because that is the part worth testing and the part a database would make
+ * awkward to test.
+ *
+ * `lastSyncedAt` is updated even when a page was empty: "we looked and there was
+ * nothing" is a different fact from "we have not looked since Tuesday", and the
+ * Channels screen shows it.
+ */
+export async function pullOrders(merchantId: string, channelId: string): Promise<SyncJobItem> {
+  const { channel, adapter } = await syncableChannel(merchantId, channelId);
+
+  const context: IngestContext = {
+    merchantId,
+    channelId: channel.id,
+    actor: `channel:${channel.kind}`,
+    variantIdBySku: await variantIdsBySku(prisma, merchantId),
+  };
+
+  return runJob(channel.id, SyncJobType.order_pull, async () => {
+    const outcome = await readPages({
+      adapter,
+      db: prisma,
+      context,
+      cursor: channel.cursor ?? undefined,
+      onPageCommitted: async (next) => {
+        await prisma.channel.update({
+          where: { id: channel.id },
+          data: { lastSyncedAt: new Date(), ...(next ? { cursor: next } : {}) },
+        });
+      },
+    });
+
+    return { itemsOk: outcome.itemsOk, failures: outcome.failures };
+  });
 }
 
 export async function listSyncJobs(

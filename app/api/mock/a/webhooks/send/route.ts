@@ -14,10 +14,12 @@ export const dynamic = 'force-dynamic';
  * The signature covers `timestamp.body` — see src/lib/hmac.ts for why the
  * timestamp is inside the signed string rather than merely beside it.
  *
- * The receiver route arrives with milestone 5. Until then this endpoint still
- * delivers, reports the 404 it got back, and returns the exact bytes and headers
- * it sent, which is enough to build the verifying end against.
+ * The delivery URL is the one OrderHub handed over when the channel was
+ * connected, verify token and all; the mock reads it from the environment
+ * because that is where this deployment keeps it.
  */
+const registeredTarget = (): string =>
+  `${appBaseUrl()}/api/webhooks/mock_a?token=${encodeURIComponent(process.env.WEBHOOK_VERIFY_TOKEN ?? 'orderhub-demo-token')}`;
 export async function POST(request: Request) {
   const unauthorized = authorize(request);
   if (unauthorized) return unauthorized;
@@ -26,7 +28,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return fail(400, 'INVALID_BODY', 'Expected { event?, orderIndex?, target? }.');
 
   const { event, orderIndex, target } = parsed.data;
-  const url = target ?? `${appBaseUrl()}/api/webhooks/mock_a`;
+  const url = target ?? registeredTarget();
 
   // Signed over the serialised string, and that same string is what is sent.
   // Re-serialising the payload at the receiving end and hashing that would pass

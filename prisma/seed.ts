@@ -124,10 +124,16 @@ async function main() {
         kind: 'mock_b',
         name: 'MockShop B',
         credentials: {
-          clientId: 'mock-b-client',
+          clientId: process.env.MOCK_B_CLIENT_ID ?? 'mock-b-client',
+          clientSecret: process.env.MOCK_B_CLIENT_SECRET ?? 'mock-b-secret-key',
           webhookSecret: process.env.MOCK_B_WEBHOOK_SECRET ?? 'mock-b-secret',
         },
-        cursor: '2026-09-17T22:00:00Z',
+        // A timestamp, because B paginates by watermark where A hands out an
+        // opaque id — the Channels screen shows both, and they are meant to look
+        // as different as they are. Placed 84 orders from the end of B's feed so
+        // the demo has something to pull: one click reads the three pages a run
+        // is allowed, and a second finishes the feed and reports it caught up.
+        cursor: '2026-09-08T00:00:00.000Z',
         lastSyncedAt: hoursAfter(NOW, -11),
       },
       { merchantId: merchant.id, kind: 'storefront', name: 'OrderHub Storefront', credentials: {} },

@@ -1,6 +1,7 @@
 import { ChannelKind } from '@/generated/prisma/enums';
 import type { ChannelAdapter, ChannelCredentials } from './adapter';
 import { MockShopAAdapter } from './mock-a';
+import { MockShopBAdapter } from './mock-b';
 
 /**
  * Which kinds of channel have a connector, and how to build one.
@@ -15,14 +16,16 @@ import { MockShopAAdapter } from './mock-a';
  */
 const FACTORIES: Partial<Record<ChannelKind, (credentials: ChannelCredentials) => ChannelAdapter>> = {
   [ChannelKind.mock_a]: (credentials) => new MockShopAAdapter(credentials),
-  // mock_b arrives with milestone 5, and is the reason the interface exists.
+  [ChannelKind.mock_b]: (credentials) => new MockShopBAdapter(credentials),
 };
 
 /**
  * Kinds this app is itself the source of truth for. Their absence from
- * `FACTORIES` is permanent and means something different from MockShop B's,
- * which is absent only until milestone 5 — and a screen that could not tell the
- * two apart would have to claim that a marketplace's orders originate here.
+ * `FACTORIES` is permanent and means something different from a marketplace
+ * whose adapter simply has not been written yet — a screen that could not tell
+ * the two apart would have to claim that a marketplace's orders originate here.
+ * Every marketplace in the enum has a connector today; the distinction is kept
+ * because the next one to be added will not, for a while.
  */
 const FIRST_PARTY: readonly ChannelKind[] = [ChannelKind.storefront];
 

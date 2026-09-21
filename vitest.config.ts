@@ -10,7 +10,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
-    // The three suites that matter arrive with milestones 2, 3 and 5.
+    // All three of the suites that matter are here as of milestone 5; the flag
+    // stays so a fresh clone of an earlier tag still runs.
     passWithNoTests: true,
   },
 });
