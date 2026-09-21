@@ -118,7 +118,16 @@ export function reviewBatch(items: CatalogItemPayload[]): BatchResponse {
  * that the unique index on (channelId, externalId) exists to survive.
  */
 const UNIVERSE = 240;
-const EPOCH = new Date('2026-09-18T12:00:00Z');
+/**
+ * Where A's feed ends, and so where every timestamp in it is measured back from.
+ *
+ * The start of the current UTC day, rather than a fixed date or the moment this
+ * module happened to load: a marketplace whose history stopped last September
+ * hands a demo orders that are visibly stale, and one anchored to boot time
+ * tells two requests that landed on different instances two different stories.
+ * A day is the coarsest thing they can agree on without being told.
+ */
+const feedEnd = () => new Date(new Date().setUTCHours(0, 0, 0, 0));
 const HOURS_BETWEEN_ORDERS = 6; // 240 orders over the seed's own 60 days of history
 
 const CURSOR_PATTERN = /^cur_a_(\d{5})$/;
@@ -173,7 +182,7 @@ export function orderAt(index: number): OrderPayload {
   });
 
   const placedAt = new Date(
-    EPOCH.getTime() - (UNIVERSE - 1 - index) * HOURS_BETWEEN_ORDERS * 3_600_000,
+    feedEnd().getTime() - (UNIVERSE - 1 - index) * HOURS_BETWEEN_ORDERS * 3_600_000,
   );
 
   return {

@@ -507,12 +507,18 @@ pnpm db:seed                  # 50 products, 200 orders, 60 days of history
 pnpm dev
 ```
 
-The seed is deterministic (`faker.seed`), so two people running it get the same
-demo, and it always leaves the app non-empty: three warehouses, fifty products,
-two hundred orders across sixty days and all five statuses, some low-stock
-variants, and a sync log that already contains a `partial` run. Its sixty days
-end on the day you run it, so the overview's "today" is the day of the seed —
-reseed before taking screenshots.
+The seed is deterministic in everything but time (`faker.seed`), so two people
+running it get the same merchant, the same fifty products and the same two
+hundred customers, and it always leaves the app non-empty: three warehouses,
+fifty products, two hundred orders across sixty days and all five statuses, some
+low-stock variants, and a sync log that already contains a `partial` run.
+
+The sixty days end when you run it, and the two mock marketplaces end their own
+feeds at the start of the current UTC day. That is deliberate and it was not
+always so: the dates used to be constants, which made screenshots match forever
+and made the overview's two headline tiles — orders placed today, taken today —
+read `0` and `฿0.00` on a demo nobody had touched, more loudly with every day
+that passed. Dates in a screenshot going stale is the cheaper of the two.
 
 Redis is optional locally. With `UPSTASH_REDIS_REST_URL` and
 `UPSTASH_REDIS_REST_TOKEN` unset, the rate limiter, the retry queue and the
@@ -613,10 +619,11 @@ rewrite before it deletes anything.
 
 **`db:seed:prod` is destructive**: it deletes every row in every table and writes
 the demo data again. That is the point — the seed is deterministic
-(`faker.seed`), so running it returns the live demo to exactly the state the
-screenshots were taken in, and an empty demo reads as a broken one. Run it once
-after the first `db:deploy:prod`, and again whenever the demo has been clicked
-about too much.
+(`faker.seed`), so running it returns the live demo to the state the screenshots
+were taken in, dated the day you ran it, and an empty demo reads as a broken
+one. Run it once after the first `db:deploy:prod`, again whenever the demo has
+been clicked about too much, and again before taking screenshots — the overview
+counts what happened today, and the seed is what puts something there.
 
 ### 5. Every deploy after the first
 

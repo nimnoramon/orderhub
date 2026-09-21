@@ -163,8 +163,11 @@ Database is Neon, two branches: `dev` for local work and `production` (the Neon
 default branch) for the deployed demo, region `ap-southeast-1`. There is no
 Docker in this setup; `.env.example` lists every variable.
 
-The seed is deterministic (`faker.seed(20260918)`) so screenshots stay accurate,
-and it always leaves the demo non-empty: 3 warehouses, 50 products, 200 orders
+The seed is deterministic in everything but time (`faker.seed(20260918)`): the
+same merchant, products and customers on every run, dated from the moment you
+run it so the overview's "today" has something in it. The mocks end their feeds
+at the start of the current UTC day for the same reason. It always leaves the
+demo non-empty: 3 warehouses, 50 products, 200 orders
 across 60 days and all five statuses, some low-stock variants, and a sync log
 that already contains a `partial` run.
 

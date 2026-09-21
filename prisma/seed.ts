@@ -5,19 +5,40 @@ import { prisma } from '../src/server/db';
 import { databaseTarget, demoLogin } from '../src/server/demo';
 import type { OrderStatus, ProductStatus, StockReason, SyncJobStatus, SyncJobType } from '../src/generated/prisma/enums';
 
-// Fixed seed: the demo data is identical on every machine and every reset, so a
-// screenshot in the README still matches the live site.
+// Fixed seed: the same merchant, the same fifty products, the same two hundred
+// customers on every machine and every reset. What it does not fix is *when* —
+// see NOW — so a screenshot matches the live demo in everything but its dates.
 faker.seed(20260918);
 
 const DAYS_OF_HISTORY = 60;
 const PRODUCT_COUNT = 50;
 const ORDER_COUNT = 200;
-const NOW = new Date('2026-09-18T12:00:00Z');
+
+/**
+ * The demo's clock, and the one thing here that is not deterministic.
+ *
+ * It was a hardcoded date, for screenshots that would match forever. The cost
+ * turned out to be the first thing a visitor sees: the overview counts orders
+ * placed *today*, so a demo whose history ended on a fixed day showed 0 and
+ * ฿0.00 in its two headline tiles — and said it louder with every day that
+ * passed. Reseeding could not fix it, which is the tell that the date was the
+ * bug and not the data.
+ */
+const NOW = new Date();
 
 const daysAgo = (d: number) => new Date(NOW.getTime() - d * 86_400_000);
 const hoursAfter = (at: Date, h: number) => new Date(at.getTime() + h * 3_600_000);
-/** Nothing in a demo should be dated in the future. */
-const notAfterNow = (at: Date) => (at > NOW ? NOW : at);
+/**
+ * Nothing in a demo should be dated in the future.
+ *
+ * `uniqueMs` is how a clamped row keeps a distinct millisecond: the orders
+ * below are matched to their inserted rows by timestamp, and two that clamped
+ * to the same instant would collect each other's lines. It was safe to ignore
+ * while NOW was midday on a fixed date; with a real clock, whether a row clamps
+ * at all depends on the hour the seed is run.
+ */
+const notAfterNow = (at: Date, uniqueMs = 0) =>
+  at > NOW ? new Date(NOW.getTime() - uniqueMs) : at;
 const int = (min: number, max: number) => faker.number.int({ min, max });
 const pick = <T>(xs: readonly T[]): T => xs[int(0, xs.length - 1)];
 
@@ -130,10 +151,13 @@ async function main() {
         },
         // A timestamp, because B paginates by watermark where A hands out an
         // opaque id — the Channels screen shows both, and they are meant to look
-        // as different as they are. Placed 84 orders from the end of B's feed so
-        // the demo has something to pull: one click reads the three pages a run
-        // is allowed, and a second finishes the feed and reports it caught up.
-        cursor: '2026-09-08T00:00:00.000Z',
+        // as different as they are. Placed about 84 orders from the end of B's
+        // feed so the demo has something to pull: one click reads the three
+        // pages a run is allowed, and a second finishes the feed and reports it
+        // caught up. B spaces its orders three hours apart, restated here rather
+        // than imported like every other fact about B's wire format, so 84 of
+        // them is 252 hours back from wherever that feed currently ends.
+        cursor: hoursAfter(NOW, -252).toISOString(),
         lastSyncedAt: hoursAfter(NOW, -11),
       },
       { merchantId: merchant.id, kind: 'storefront', name: 'OrderHub Storefront', credentials: {} },
@@ -204,7 +228,7 @@ async function main() {
     // timestamps have milliseconds anyway.
     const placedAt = new Date(daysAgo(ageDays));
     placedAt.setUTCHours(int(6, 21), int(0, 59), int(0, 59), i);
-    const placed = notAfterNow(placedAt);
+    const placed = notAfterNow(placedAt, i);
 
     // How far an order has got depends on how long ago it was placed. An order
     // from two hours ago being already `shipped` is the kind of detail that makes

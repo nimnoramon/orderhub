@@ -255,7 +255,12 @@ export function reviewListings(listings: ListingPayload[]): UpsertResponse {
  * only in a test.
  */
 const UNIVERSE = 240;
-const EPOCH = new Date('2026-09-18T12:00:00Z');
+/**
+ * Where B's feed ends. The start of the current UTC day, for the same reason A
+ * uses one — restated here rather than shared, because the only thing these two
+ * marketplaces have in common is that neither of them is us.
+ */
+const feedEnd = () => new Date(new Date().setUTCHours(0, 0, 0, 0));
 const HOURS_BETWEEN_ORDERS = 3;
 
 const LISTINGS = [
@@ -283,7 +288,7 @@ export type OrderPayload = {
 };
 
 const timeOf = (index: number): Date =>
-  new Date(EPOCH.getTime() - (UNIVERSE - 1 - index) * HOURS_BETWEEN_ORDERS * 3_600_000);
+  new Date(feedEnd().getTime() - (UNIVERSE - 1 - index) * HOURS_BETWEEN_ORDERS * 3_600_000);
 
 export function orderAt(index: number): OrderPayload {
   const random = seeded(`mock-b-order-${index}`);
@@ -341,7 +346,7 @@ export function indexFromToken(token: string | undefined): number | null {
   // Orders are evenly spaced, so the first one after a moment is arithmetic
   // rather than a scan. `floor(...) + 1` is what makes the bound exclusive: a
   // token equal to an order's own timestamp returns the order after it.
-  const steps = (EPOCH.getTime() - at) / (HOURS_BETWEEN_ORDERS * 3_600_000);
+  const steps = (feedEnd().getTime() - at) / (HOURS_BETWEEN_ORDERS * 3_600_000);
   const start = Math.floor(UNIVERSE - 1 - steps) + 1;
   return Math.min(Math.max(start, 0), UNIVERSE);
 }
