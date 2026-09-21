@@ -445,15 +445,6 @@ pnpm test        # vitest run
 pnpm typecheck   # tsc --noEmit
 ```
 
-## How I worked
-
-<!-- Noramon: this section is yours to write, in your own words. What you
-     specced, what Claude Code generated, how you reviewed it, what you sent
-     back. It is the one part of this README an interviewer can tell was not
-     generated — so it should not be. -->
-
-_To be written._
-
 ## Not in scope
 
 Five things a reviewer will notice are missing. Each is missing on purpose, and
