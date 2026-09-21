@@ -46,9 +46,6 @@ export function redis(): Redis | null {
   return instance;
 }
 
-/** True when this process is talking to a real Redis. Screens and docs say so. */
-export const redisConfigured = (): boolean => redis() !== null;
-
 /**
  * Redis being unreachable must not take a sync or a page down with it.
  *

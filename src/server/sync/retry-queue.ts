@@ -45,6 +45,19 @@ export type EnqueueOutcome = {
 export const EMPTY_QUEUE: RetryQueueState = { depth: 0, nextDueAt: null };
 
 /**
+ * How long a queue outlives its last write.
+ *
+ * Far longer than an item's own life — five attempts finish inside ten minutes
+ * — because the expiry is not about backoff. It is about the keys themselves:
+ * they are named after a channel row, and re-seeding the database mints new
+ * channel ids, so without a TTL every reseed leaves a queue behind that nothing
+ * will ever read, drain or even be able to see. Seven days is long enough that
+ * a queue never expires while anyone might still act on it, and short enough
+ * that abandoned ones do not accumulate in a free-tier database.
+ */
+const QUEUE_TTL_SECONDS = 7 * 24 * 3_600;
+
+/**
  * Record a run's failures and schedule the ones worth repeating.
  *
  * Permanent failures never enter the queue at all — they are already in the
@@ -101,6 +114,10 @@ export async function enqueueFailures(
           queued.push(ref);
         }
       });
+      // Refreshed on every write, so a queue that is still being worked on never
+      // expires underneath the work.
+      writes.expire(queueKey, QUEUE_TTL_SECONDS);
+      writes.expire(triesKey, QUEUE_TTL_SECONDS);
       await writes.exec();
 
       return { queued, exhausted };
