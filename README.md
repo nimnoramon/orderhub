@@ -582,8 +582,10 @@ database serves production and every preview — keys are prefixed with
 `VERCEL_ENV`, so a preview branch cannot drain production's retry queue or hand
 it a stale summary.
 
-The landing page is statically rendered, so changing either `DEMO_*` value needs
-a redeploy before the card on it catches up.
+The landing page renders per request now — the root layout reads the language
+cookie — so its card is no longer baked at build time. Changing either `DEMO_*`
+value still needs a redeploy before the card catches up, for the other reason:
+Vercel injects environment variables into a deployment, not into a running one.
 
 ### 4. Migrate and seed the production branch, from your laptop
 

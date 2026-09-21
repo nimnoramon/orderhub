@@ -5,8 +5,9 @@ import { LocaleSwitch } from '@/components/ui/LocaleSwitch';
 
 export default async function Home() {
   // The root layout reads the language cookie, so this page renders per request
-  // rather than at build time — which also means changing DEMO_EMAIL or
-  // DEMO_PASSWORD in Vercel now shows up on the card below without a redeploy.
+  // rather than at build time. That does not make the values below live: Vercel
+  // injects environment variables into a deployment and not into a running one,
+  // so changing DEMO_EMAIL or DEMO_PASSWORD still needs a redeploy.
   const login = demoLogin();
   const t = await serverMessages();
 
