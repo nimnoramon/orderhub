@@ -7,10 +7,12 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/dashboard/summary
  *
- * The overview's numbers, computed at most once a minute per merchant. The
- * screen that reads it arrives with milestone 7; the endpoint is here first
- * because the cache and its invalidation are the interesting half, and they are
- * testable by clicking around the app that already exists.
+ * The overview's numbers, computed at most once a minute per merchant.
+ *
+ * The screen does not come through here — a page calls the service, because a
+ * server component fetching its own route would cost a round trip, an absolute
+ * URL and a forwarded cookie to reach the same cached function. This endpoint
+ * is for programs, and for watching the cache work from a terminal.
  *
  * `x-cache` is a header rather than a field because it describes this response,
  * not the merchant's data — and because being able to watch it flip to MISS the
