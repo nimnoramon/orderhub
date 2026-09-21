@@ -10,9 +10,10 @@ channel leaves a log you can read.
 Next.js 16 (App Router) · TypeScript · Prisma 7 + PostgreSQL · Redis · Tailwind 4 ·
 Vitest · pnpm. The data is fictional and comes from a deterministic seed.
 
-<!-- Live demo: paste the Vercel URL here once it is deployed, as
-     **[Live demo](https://…)** — `demo@orderhub.dev` / `demo1234`.
-     The dashboard is open; the credentials are also printed on the landing page. -->
+**[Live demo](https://orderhub-delta.vercel.app/)** — `demo@orderhub.dev` /
+`demo1234`. The dashboard is open and writable: a stock adjustment or an order
+transition there is a real row that everyone else with the link will see, until
+the database is reseeded.
 
 ## Why I built this
 
