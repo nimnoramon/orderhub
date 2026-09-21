@@ -9,19 +9,29 @@ import { AppError } from '@/server/http/errors';
  * merchantId as its first argument regardless, so swapping this body for a
  * signed-cookie read changes exactly one file — no route or service moves.
  */
-let cached: string | undefined;
-
+/**
+ * Resolved per request, never memoised across them.
+ *
+ * It was cached in a module-level variable until a reseed proved why that is
+ * the wrong shape. `db:seed:prod` mints a new merchant id, and every warm
+ * instance carried on filtering by the old one — so every screen answered 200
+ * with an empty list, and nothing threw, because a process holding a stale id
+ * never asks whether it is still real. A demo whose README tells you to reseed
+ * cannot hold identity across deployments of its own data.
+ *
+ * The deeper reason is the one that outlives this milestone: this is the seam
+ * that becomes a signed-cookie read, and *who is asking* is the last thing a
+ * server should remember between requests. One indexed `findFirst` is a price
+ * worth paying to keep it that way.
+ */
 export async function requireMerchantId(): Promise<string> {
-  if (cached) return cached;
-
   const merchant = await prisma.merchant.findFirst({
     orderBy: { createdAt: 'asc' },
     select: { id: true },
   });
   if (!merchant) throw new AppError('UNAUTHORIZED', 'No merchant found — run `pnpm db:seed`');
 
-  cached = merchant.id;
-  return cached;
+  return merchant.id;
 }
 
 /**
