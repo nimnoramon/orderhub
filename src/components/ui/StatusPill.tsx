@@ -26,6 +26,20 @@ export function OrderStatusPill({ status }: { status: OrderStatus }) {
 }
 
 /**
+ * The same lifecycle colours as solid fills, for the overview's proportion bar.
+ * They live beside the pills rather than in the chart that uses them so that a
+ * status has one colour in the whole app — a legend that disagrees with the bar
+ * it labels is worse than no legend.
+ */
+export const ORDER_BAR: Record<OrderStatus, string> = {
+  created: 'bg-neutral-300',
+  paid: 'bg-sky-400',
+  packed: 'bg-amber-400',
+  shipped: 'bg-teal-600',
+  cancelled: 'bg-rose-400',
+};
+
+/**
  * `partial` is amber rather than red on purpose: the run worked, and some of its
  * items did not. Colouring it as a failure would teach the person reading the
  * log to ignore the distinction the whole sync model is built around.

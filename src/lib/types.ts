@@ -245,6 +245,9 @@ export type DashboardSummary = {
     id: string;
     name: string;
     kind: ChannelKind;
+    /** Same three states as `ChannelSummary` — the overview has to tell a
+     *  channel that has never been synced from one there is nothing to sync. */
+    connector: 'ready' | 'planned' | 'none';
     lastSyncedAt: string | null;
     lastJob: SyncJobItem | null;
   }[];

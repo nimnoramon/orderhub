@@ -1,5 +1,6 @@
 import { OrderStatus, SyncJobStatus } from '@/generated/prisma/enums';
 import { prisma } from '@/server/db';
+import { connectorState } from '@/server/channels/registry';
 import { dropCache, readCache, writeCache } from '@/server/redis/cache';
 import { dashboardKey } from '@/server/redis/keys';
 import { deriveLevels, LOW_STOCK_THRESHOLD } from '@/server/stock/levels';
@@ -90,6 +91,11 @@ async function channelActivity(merchantId: string): Promise<DashboardSummary['ch
         id: channel.id,
         name: channel.name,
         kind: channel.kind,
+        // Read from the registry rather than decided by the screen: "this kind
+        // has no connector" is a fact about the code, and a dashboard that
+        // worked it out from the channel's name would be free to be wrong
+        // about it the day a second storefront is added.
+        connector: connectorState(channel.kind),
         lastSyncedAt: channel.lastSyncedAt?.toISOString() ?? null,
         lastJob: job ? mapSyncJob(job) : null,
       };

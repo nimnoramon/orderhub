@@ -1,5 +1,6 @@
 import { formatDateTime, formatDuration } from '@/lib/dates';
 import { SyncStatusPill } from '@/components/ui/StatusPill';
+import { Failures } from '@/components/sync/Failures';
 import type { SyncJobItem } from '@/lib/types';
 
 const TH = 'px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-400';
@@ -9,34 +10,6 @@ export const JOB_TYPE_LABELS = {
   catalog_push: 'Catalog push',
   order_pull: 'Order pull',
 } as const;
-
-/**
- * The expandable detail is a `<details>` element rather than a click handler and
- * a piece of state. It keeps this whole screen a server component: no bundle, no
- * hydration, and the rows still open — which is the right trade for a log whose
- * only interaction is "show me what went wrong".
- */
-function Failures({ job }: { job: SyncJobItem }) {
-  return (
-    <details className="group">
-      <summary className="cursor-pointer list-none text-xs font-medium text-neutral-500 hover:text-neutral-900">
-        <span className="inline-block w-3 transition group-open:rotate-90">›</span>
-        {job.itemsFailed} item{job.itemsFailed === 1 ? '' : 's'} failed
-      </summary>
-      <ul className="mt-2 ml-3 flex flex-col gap-1 border-l border-neutral-200 pl-3">
-        {job.failures.map((failure, index) => (
-          <li key={`${failure.ref}-${index}`} className="flex flex-wrap items-baseline gap-2 text-xs">
-            <span className="font-mono text-neutral-900">{failure.ref}</span>
-            <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-medium text-neutral-600">
-              {failure.code}
-            </span>
-            <span className="text-neutral-500">{failure.message}</span>
-          </li>
-        ))}
-      </ul>
-    </details>
-  );
-}
 
 export function SyncJobsTable({ jobs }: { jobs: SyncJobItem[] }) {
   if (jobs.length === 0) {

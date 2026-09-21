@@ -8,7 +8,7 @@ const MILESTONES = [
   { n: 4, title: 'MockShop A and the adapter interface', done: true },
   { n: 5, title: 'MockShop B and idempotent order pull', done: true },
   { n: 6, title: 'Rate limiting, retry queue, cached dashboard', done: true },
-  { n: 7, title: 'Overview dashboard and README', done: false },
+  { n: 7, title: 'Overview dashboard and README', done: true },
 ];
 
 export default function Home() {
@@ -21,15 +21,21 @@ export default function Home() {
       <h1 className="text-2xl font-semibold tracking-tight">OrderHub</h1>
       <p className="mt-3 text-neutral-600">
         A miniature omnichannel order hub — product/stock/order core, two mock marketplace
-        connectors, and an admin dashboard. Being built in the open, one milestone at a time.
+        connectors, and an admin dashboard. Built in the open, one milestone at a time.
       </p>
 
       <div className="mt-6 flex flex-wrap gap-2">
         <Link
-          href="/orders"
+          href="/overview"
           className="inline-flex rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800"
         >
-          Open orders
+          Open the dashboard
+        </Link>
+        <Link
+          href="/orders"
+          className="inline-flex rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+        >
+          Orders
         </Link>
         <Link
           href="/products"
