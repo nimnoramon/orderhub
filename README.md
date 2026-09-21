@@ -28,14 +28,13 @@ whether an integration is correct.
 
 ## What's in it
 
-<!-- Screenshots go here, one per screen, once the demo is deployed:
-     ![Overview](docs/screenshots/overview.png) and so on. -->
-
 **Overview** (`/overview`) — today's orders and takings, orders by status, how
 many variants are low, the last run per channel, and the runs that did not go
 cleanly. One cached document rather than five endpoints, because it is one screen
 and five round trips is five chances to show numbers that disagree with each
 other.
+
+![Overview: the four tiles, orders by status, the last run per channel, and the runs that ended partial or failed](docs/screenshots/overview.png)
 
 **Orders** (`/orders`) — status, channel, date-range and search filters, all of
 them in the URL so a filtered view survives a reload and can be pasted to
@@ -43,16 +42,24 @@ somebody else. Order detail has the items, the totals, the status timeline and
 the transition buttons, greyed out by the same state machine that answers the
 API.
 
+![Orders: three channels in one table, with status, channel, date-range and search filters above it](docs/screenshots/orders.png)
+
 **Products & stock** (`/products`) — the catalog, stock per warehouse, the
 movement ledger underneath it, and an adjustment dialog that writes a movement
 with a reason instead of editing a number.
+
+![Products & stock: SKU, status, variant count, price range in baht and stock on hand, with low rows marked](docs/screenshots/products.png)
 
 **Channels** (`/channels`) — the two connectors, a catalog push and an order pull
 each, what is waiting in the retry queue, and what is left of each channel's
 request budget.
 
+![Channels: a card per channel with its last push and pull, its cursor, its retry queue and its request budget](docs/screenshots/channels.png)
+
 **Sync log** (`/sync-log`) — every run, `partial` included, with the per-item
 failures expandable in place.
+
+![Sync log: every run with its status, items ok and failed, and the failed items expandable in place](docs/screenshots/sync-log.png)
 
 **Language and money.** Every screen reads in English or Thai, switched from the
 sidebar and remembered in a cookie, and the demo merchant sells in baht — the
