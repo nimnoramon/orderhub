@@ -1,5 +1,6 @@
 import { formatDateTime } from '@/lib/dates';
 import { requireSignedIn } from '@/server/auth/session';
+import { serverMessages } from '@/server/i18n/locale';
 import { getDashboardSummary } from '@/server/services/dashboard';
 import { ChannelActivity } from '@/components/dashboard/ChannelActivity';
 import { RecentFailures } from '@/components/dashboard/RecentFailures';
@@ -23,16 +24,14 @@ export const dynamic = 'force-dynamic';
  */
 export default async function OverviewPage() {
   const { merchantId } = await requireSignedIn();
+  const t = await serverMessages();
   const { summary, cached, ttlSeconds } = await getDashboardSummary(merchantId);
 
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-lg font-semibold tracking-tight text-neutral-900">Overview</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Six numbers that say whether the day is going well and whether the channels are still
-          talking to us.
-        </p>
+        <h1 className="text-lg font-semibold tracking-tight text-neutral-900">{t.overview.title}</h1>
+        <p className="mt-1 text-sm text-neutral-500">{t.overview.subtitle}</p>
       </header>
 
       <SummaryTiles summary={summary} />
@@ -49,10 +48,7 @@ export default async function OverviewPage() {
           numbers were computed and whether this particular render paid for
           them — a demo of a cache that cannot be seen working is a claim. */}
       <p className="text-xs text-neutral-400">
-        Computed {formatDateTime(summary.generatedAt)} ·{' '}
-        {cached ? 'served from Redis' : 'computed for this request'} · recomputed at most once every{' '}
-        {ttlSeconds} seconds, and immediately after a status change, an order arriving from a
-        channel, a stock movement or a finished sync.
+        {t.overview.computed(formatDateTime(summary.generatedAt), cached, ttlSeconds)}
       </p>
     </div>
   );

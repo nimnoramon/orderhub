@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { formatCents } from '@/lib/money';
+import { serverMessages } from '@/server/i18n/locale';
 import type { DashboardSummary } from '@/lib/types';
 
 const CARD =
@@ -33,7 +34,8 @@ function Tile({
   );
 }
 
-export function SummaryTiles({ summary }: { summary: DashboardSummary }) {
+export async function SummaryTiles({ summary }: { summary: DashboardSummary }) {
+  const t = await serverMessages();
   const { today, ordersByStatus, lowStock } = summary;
 
   // Not shipped and not cancelled: the orders somebody still has to do something
@@ -50,31 +52,31 @@ export function SummaryTiles({ summary }: { summary: DashboardSummary }) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Tile
-        label="Orders today"
+        label={t.overview.tiles.ordersToday}
         value={String(today.orders)}
-        hint={`placed since ${day} 00:00 UTC`}
+        hint={t.overview.tiles.ordersTodayHint(day)}
         href={`/orders?from=${day}&to=${day}`}
       />
       <Tile
-        label="Taken today"
+        label={t.overview.tiles.takenToday}
         // The demo merchant sells in one currency, so the day's takings are a
         // single sum. A merchant with more would need this grouped by currency —
         // adding the numbers together would be the bug, and converting them to a
         // display currency at read time would be the second one.
         value={formatCents(today.revenueCents)}
-        hint="order totals, cancellations included"
+        hint={t.overview.tiles.takenTodayHint}
         href={`/orders?from=${day}&to=${day}`}
       />
       <Tile
-        label="Open orders"
+        label={t.overview.tiles.openOrders}
         value={String(open)}
-        hint="created, paid or packed"
+        hint={t.overview.tiles.openOrdersHint}
         href="/orders"
       />
       <Tile
-        label="Low stock"
+        label={t.overview.tiles.lowStock}
         value={String(lowStock.variants)}
-        hint={`variants at or below ${lowStock.threshold} in a warehouse`}
+        hint={t.overview.tiles.lowStockHint(lowStock.threshold)}
         href="/products"
       />
     </div>

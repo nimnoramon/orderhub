@@ -54,6 +54,11 @@ request budget.
 **Sync log** (`/sync-log`) — every run, `partial` included, with the per-item
 failures expandable in place.
 
+**Language and money.** Every screen reads in English or Thai, switched from the
+sidebar and remembered in a cookie, and the demo merchant sells in baht — the
+prices are minted as baht in the seed rather than converted from a dollar figure,
+so they read like a Thai price tag rather than like an exchange rate.
+
 **Sign-in** (`/login`) — one seeded account, bcrypt, and a signed cookie that
 carries an id and an expiry and nothing else. The form arrives with the demo
 credentials already in it, because the password is printed in this README and
@@ -147,6 +152,15 @@ the way to the edge and is formatted only when rendered; dates are UTC ISO
 strings in every payload; validation is zod schemas in `src/lib/schemas/`, parsed
 by the route handler and reused by the client form, so the browser and the server
 enforce one set of rules rather than two that drift.
+
+**The screen speaks two languages; the API speaks one.** Every word of the UI
+comes out of a typed dictionary in `src/lib/i18n/` — English is the type, so a
+key missing from the Thai copy is a build error rather than an English word in a
+Thai sentence — and the choice is a cookie the server reads, not a segment in
+the URL. What is deliberately not translated is anything a program reads: an
+`AppError` message, a 409 refusal from the state machine, a rejection quoted
+back from a marketplace. Those are the API's own words, and an API that
+answered in whichever language the last browser asked for would be a worse API.
 
 ## Data model
 
@@ -412,9 +426,10 @@ the code that happens to exist.
 | `retry-queue` | which codes are worth retrying, the doubling and its jitter bounds, attempts counted across runs until an item is abandoned |
 | `session-cookie` | a payload edited after signing, a signature from another secret, a signature lifted from another cookie, expiry to the second, and that a missing or malformed cookie reads as signed out rather than throwing |
 
-The services, the route handlers and the UI are deliberately untested. They are
-wiring — parse, call, map — and the parts they wire together are the eight suites
-above. Writing shallow tests for them would raise a coverage number without
+The services, the route handlers, the UI and the language layer are deliberately
+untested. They are
+wiring — parse, call, map, look a word up — and the parts they wire together are
+the nine suites above. Writing shallow tests for them would raise a coverage number without
 raising the chance that this software is correct, and pretending otherwise in a
 portfolio project seems a strange thing to do.
 
@@ -434,7 +449,7 @@ _To be written._
 
 ## Not in scope
 
-Four things a reviewer will notice are missing. Each is missing on purpose, and
+Five things a reviewer will notice are missing. Each is missing on purpose, and
 the reason is the same in every case: this project is about integration
 correctness, and anything that would have been a well-trodden implementation of
 something else was left out rather than half-built.
@@ -456,6 +471,16 @@ factor, no roles, and no way to end somebody else's session except by deleting
 their user. The demo has one account, so none of that would have been exercised
 by anything; each of them is a decision with real alternatives and would deserve
 building properly rather than sketching.
+
+**Localised routing, and more than two languages.** The language is a cookie the
+server reads, not a `/th/…` segment, and there is no `Accept-Language` sniffing:
+the switcher is on every screen and a header that quietly overrode it would make
+the button look broken. That trade is deliberate — locale-prefixed routes buy
+shareable per-language URLs and something for a crawler to index, and cost a
+restructured `app/` and a middleware, which is a poor bargain for a demo with
+one audience. Currency is a column and formatting already goes through one
+module, so a second currency is a data question rather than a code one; nothing
+here converts between them, because a rate that is not fetched is a lie.
 
 **A separate API service.** The route handlers are thin and the services below
 them have no Next.js in their imports, so the extraction is mechanical if the

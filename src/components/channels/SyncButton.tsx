@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useT } from '@/components/ui/I18nProvider';
+import type { Messages } from '@/lib/i18n';
 import type { RetryRunResult, SyncJobItem } from '@/lib/types';
 import type { SyncJobType } from '@/generated/prisma/enums';
 
@@ -25,27 +27,29 @@ export type SyncAction = SyncJobType | 'catalog_retry';
 
 type Read = { job: SyncJobItem | null; note: string | null };
 
+/**
+ * What each action calls and how it reads the answer. The words themselves come
+ * out of the dictionary — the table says which entry, not what it says.
+ */
 const SYNCS = {
   catalog_push: {
     path: 'catalog',
-    idle: 'Sync catalog',
-    busy: 'Pushing…',
     primary: true,
     read: (body: unknown): Read => ({ job: body as SyncJobItem, note: null }),
-    summary: (job: SyncJobItem) => `${job.itemsOk} accepted, ${job.itemsFailed} rejected`,
+    labels: (t: Messages) => t.channels.sync.catalogPush,
+    summary: (t: Messages, job: SyncJobItem) =>
+      t.channels.sync.catalogPushSummary(job.itemsOk, job.itemsFailed),
   },
   order_pull: {
     path: 'orders',
-    idle: 'Pull orders',
-    busy: 'Reading…',
     primary: true,
     read: (body: unknown): Read => ({ job: body as SyncJobItem, note: null }),
-    summary: (job: SyncJobItem) => `${job.itemsOk} orders read, ${job.itemsFailed} failed`,
+    labels: (t: Messages) => t.channels.sync.orderPull,
+    summary: (t: Messages, job: SyncJobItem) =>
+      t.channels.sync.orderPullSummary(job.itemsOk, job.itemsFailed),
   },
   catalog_retry: {
     path: 'retries',
-    idle: 'Run retries',
-    busy: 'Retrying…',
     primary: false,
     // The only action that can succeed without running a job at all: an empty
     // or not-yet-due queue is a 200 with a sentence rather than a result.
@@ -53,7 +57,9 @@ const SYNCS = {
       const result = body as RetryRunResult;
       return { job: result.job, note: result.note };
     },
-    summary: (job: SyncJobItem) => `${job.itemsOk} accepted, ${job.itemsFailed} still failing`,
+    labels: (t: Messages) => t.channels.sync.catalogRetry,
+    summary: (t: Messages, job: SyncJobItem) =>
+      t.channels.sync.catalogRetrySummary(job.itemsOk, job.itemsFailed),
   },
 } as const satisfies Record<SyncAction, unknown>;
 
@@ -67,12 +73,14 @@ export function SyncButton({
   disabled?: boolean;
 }) {
   const router = useRouter();
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<SyncJobItem | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const copy = SYNCS[type];
+  const action = SYNCS[type];
+  const labels = action.labels(t);
 
   async function run() {
     setBusy(true);
@@ -80,14 +88,16 @@ export function SyncButton({
     setJob(null);
     setNote(null);
 
-    const response = await fetch(`/api/channels/${channelId}/sync/${copy.path}`, { method: 'POST' });
+    const response = await fetch(`/api/channels/${channelId}/sync/${action.path}`, {
+      method: 'POST',
+    });
     const body = await response.json().catch(() => null);
 
     if (!response.ok) {
       // 4xx only: no job was started, and the body says why.
-      setError(body?.error?.message ?? 'The sync could not be started');
+      setError(body?.error?.message ?? t.channels.sync.failed);
     } else {
-      const result = copy.read(body);
+      const result = action.read(body);
       setJob(result.job);
       setNote(result.note);
       router.refresh();
@@ -109,20 +119,20 @@ export function SyncButton({
         onClick={run}
         disabled={disabled || busy}
         className={
-          copy.primary
+          action.primary
             ? 'rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400'
             : 'rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:border-neutral-100 disabled:text-neutral-300'
         }
       >
-        {busy ? copy.busy : copy.idle}
+        {busy ? labels.busy : labels.idle}
       </button>
 
       {job && (
         <p className={`text-xs ${tone}`}>
-          {job.status} — {copy.summary(job)}
-          {job.attempt > 1 && ` (attempt ${job.attempt})`}.{' '}
+          {t.syncStatus[job.status]} — {action.summary(t, job)}
+          {job.attempt > 1 && ` (${t.common.attempt(job.attempt)})`}.{' '}
           <Link href="/sync-log" className="underline underline-offset-2">
-            Open the log
+            {t.channels.sync.openLog}
           </Link>
         </p>
       )}

@@ -1,4 +1,5 @@
 import { formatDateTime, formatDuration } from '@/lib/dates';
+import { serverMessages } from '@/server/i18n/locale';
 import { SyncStatusPill } from '@/components/ui/StatusPill';
 import { Failures } from '@/components/sync/Failures';
 import type { SyncJobItem } from '@/lib/types';
@@ -6,16 +7,13 @@ import type { SyncJobItem } from '@/lib/types';
 const TH = 'px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-400';
 const TD = 'px-4 py-2.5 text-sm text-neutral-700';
 
-export const JOB_TYPE_LABELS = {
-  catalog_push: 'Catalog push',
-  order_pull: 'Order pull',
-} as const;
+export async function SyncJobsTable({ jobs }: { jobs: SyncJobItem[] }) {
+  const t = await serverMessages();
 
-export function SyncJobsTable({ jobs }: { jobs: SyncJobItem[] }) {
   if (jobs.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-12 text-center text-sm text-neutral-500">
-        No sync jobs match those filters.
+        {t.syncLog.empty}
       </p>
     );
   }
@@ -25,26 +23,26 @@ export function SyncJobsTable({ jobs }: { jobs: SyncJobItem[] }) {
       <table className="w-full border-collapse">
         <thead className="border-b border-neutral-200 bg-neutral-50/60">
           <tr>
-            <th className={TH}>Started</th>
-            <th className={TH}>Channel</th>
-            <th className={TH}>Job</th>
-            <th className={TH}>Status</th>
-            <th className={`${TH} text-right`}>Ok</th>
-            <th className={`${TH} text-right`}>Failed</th>
-            <th className={`${TH} text-right`}>Took</th>
+            <th className={TH}>{t.syncLog.table.started}</th>
+            <th className={TH}>{t.syncLog.table.channel}</th>
+            <th className={TH}>{t.syncLog.table.job}</th>
+            <th className={TH}>{t.syncLog.table.status}</th>
+            <th className={`${TH} text-right`}>{t.syncLog.table.ok}</th>
+            <th className={`${TH} text-right`}>{t.syncLog.table.failed}</th>
+            <th className={`${TH} text-right`}>{t.syncLog.table.took}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
           {jobs.map((job) => (
             <tr key={job.id} className="align-top">
               <td className={`${TD} whitespace-nowrap text-neutral-500`}>
-                {job.startedAt ? formatDateTime(job.startedAt) : 'not started'}
+                {job.startedAt ? formatDateTime(job.startedAt) : t.common.notStarted}
               </td>
               <td className={TD}>{job.channel.name}</td>
               <td className={`${TD} text-neutral-500`}>
-                {JOB_TYPE_LABELS[job.type]}
+                {t.jobType[job.type]}
                 {job.attempt > 1 && (
-                  <span className="ml-2 text-xs text-neutral-400">attempt {job.attempt}</span>
+                  <span className="ml-2 text-xs text-neutral-400">{t.common.attempt(job.attempt)}</span>
                 )}
               </td>
               <td className={TD}>

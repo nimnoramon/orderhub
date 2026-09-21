@@ -18,7 +18,7 @@ const item = (overrides: Partial<CatalogItemPayload> = {}): CatalogItemPayload =
   sku: 'AUD-1001-BLACK',
   title: 'Sturdy Audio speaker',
   price_cents: 2499,
-  currency: 'USD',
+  currency: 'THB',
   options: { colour: 'Black' },
   ...overrides,
 });
@@ -82,9 +82,9 @@ describe('the MockShop A adapter', () => {
     stubChannel();
 
     const result = await adapter.pushCatalog([
-      { variantId: 'v1', sku: 'AUD-1002-SAND', title: 'Speaker', priceCents: 2499, currency: 'USD', attributes: { colour: 'Sand' } },
-      { variantId: 'v2', sku: refusedSku, title: 'Speaker', priceCents: 2499, currency: 'USD', attributes: { colour: 'Black' } },
-      { variantId: 'v3', sku: 'LGT-1005-2700K', title: 'Lamp', priceCents: 0, currency: 'USD', attributes: { temperature: '2700K' } },
+      { variantId: 'v1', sku: 'AUD-1002-SAND', title: 'Speaker', priceCents: 2499, currency: 'THB', attributes: { colour: 'Sand' } },
+      { variantId: 'v2', sku: refusedSku, title: 'Speaker', priceCents: 2499, currency: 'THB', attributes: { colour: 'Black' } },
+      { variantId: 'v3', sku: 'LGT-1005-2700K', title: 'Lamp', priceCents: 0, currency: 'THB', attributes: { temperature: '2700K' } },
     ]);
 
     expect(result.ok).toEqual(['AUD-1002-SAND']);
@@ -102,7 +102,7 @@ describe('the MockShop A adapter', () => {
       sku: `KIT-${1004 + index}-M`,
       title: 'Pan',
       priceCents: 1999,
-      currency: 'USD',
+      currency: 'THB',
       attributes: { size: 'M' },
     }));
 

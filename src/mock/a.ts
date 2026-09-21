@@ -166,7 +166,9 @@ export function orderAt(index: number): OrderPayload {
     return {
       sku: `${listing.code}-${productNumber}-${random.pick(listing.values)}`,
       qty: random.int(1, 3),
-      unit_price_cents: random.int(9, 249) * 100 + 99,
+      // Baht in minor units. A price tag here reads ฿290, ฿1,290 — round
+      // hundreds ending in ninety — so the universe is minted that way.
+      unit_price_cents: (random.int(2, 89) * 100 + 90) * 100,
     };
   });
 
@@ -177,7 +179,7 @@ export function orderAt(index: number): OrderPayload {
   return {
     id: `A-${100_000 + index}`,
     placed_at: placedAt.toISOString(),
-    currency: 'USD',
+    currency: 'THB',
     total_cents: lines.reduce((sum, line) => sum + line.qty * line.unit_price_cents, 0),
     customer: { name: `${random.pick(FIRST_NAMES)} ${random.pick(LAST_NAMES)}` },
     lines,

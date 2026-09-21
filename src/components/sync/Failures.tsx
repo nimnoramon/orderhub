@@ -1,3 +1,4 @@
+import { serverMessages } from '@/server/i18n/locale';
 import type { SyncJobItem } from '@/lib/types';
 
 /**
@@ -10,13 +11,18 @@ import type { SyncJobItem } from '@/lib/types';
  *
  * It has its own file because the sync log and the overview both show it, and a
  * second copy would be free to disagree about what a failure looks like.
+ *
+ * The code and message of each failure come from the marketplace that refused
+ * the item, so they are shown as they arrived rather than translated.
  */
-export function Failures({ job }: { job: SyncJobItem }) {
+export async function Failures({ job }: { job: SyncJobItem }) {
+  const t = await serverMessages();
+
   return (
     <details className="group">
       <summary className="cursor-pointer list-none text-xs font-medium text-neutral-500 hover:text-neutral-900">
         <span className="inline-block w-3 transition group-open:rotate-90">›</span>
-        {job.itemsFailed} item{job.itemsFailed === 1 ? '' : 's'} failed
+        {t.syncLog.failures(job.itemsFailed)}
       </summary>
       <ul className="mt-2 ml-3 flex flex-col gap-1 border-l border-neutral-200 pl-3">
         {job.failures.map((failure, index) => (

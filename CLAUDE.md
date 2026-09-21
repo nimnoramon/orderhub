@@ -30,7 +30,9 @@ src/server/          all business logic and the only code that touches the DB
   ratelimit/         token bucket (pure maths + Lua) and the limiter around it
   redis/             client, key names, the in-process fallback, the cache
   http/              handler + error -> status mapping, in one place
+  i18n/              which language this request is in, for server components
 src/lib/             types, zod schemas, money and date helpers (shared both sides)
+  i18n/              the two dictionaries; en is the type, th must satisfy it
 src/mock/            the mock marketplaces' own internals — a third party, not us
 src/components/      UI
 prisma/              schema, migrations, seed
@@ -87,7 +89,15 @@ is worse than not building the feature.
 
 - **Money is integer minor units** (`priceCents`, `totalCents`, `unitPriceCents`)
   all the way to the edge; format only when rendering, via `src/lib/money.ts`.
-  Not `Decimal` — it does not survive the server/client component boundary.
+  Not `Decimal` — it does not survive the server/client component boundary. The
+  demo sells in **baht**: the minor unit is the satang, also a hundredth, so the
+  `…Cents` names still say what is in the column.
+- **User-facing copy lives in `src/lib/i18n/`, never inline in a component.**
+  `en.ts` is the type and `th.ts` is annotated with it, so a missing key fails
+  `pnpm typecheck` instead of showing an English word in a Thai sentence. Server
+  components read `serverMessages()`; client components call `useT()`. What is
+  *not* translated: `AppError` messages, the state machine's refusals, and
+  anything a marketplace said — those are the API's words, not the screen's.
 - **Dates are UTC ISO strings in API payloads**; format in the component.
 - **Validation is zod, in `src/lib/schemas/`**, shared by the route handler and
   the client form. The handler parses; the service takes typed input and trusts it.
@@ -131,6 +141,11 @@ payload, a signature from another secret, a signature lifted from another
 cookie, expiry to the second, and a malformed cookie reading as signed out
 rather than throwing. The route handlers, the form and the redirects around it
 are untested, like every other wiring in this project.
+
+Milestone 9 translated every screen and moved the demo to baht, and added no
+suite: the dictionaries are copy, and the one rule worth pinning down — a
+missing key — is already a type error. Say that rather than testing that `th.ts`
+has the keys `en.ts` has.
 
 ## Commands
 

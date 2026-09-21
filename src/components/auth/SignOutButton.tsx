@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useT } from '@/components/ui/I18nProvider';
 
 /**
  * A button and not a link, because signing out is a POST — see the route for
@@ -11,6 +12,7 @@ import { useState } from 'react';
  */
 export function SignOutButton() {
   const router = useRouter();
+  const t = useT();
   const [busy, setBusy] = useState(false);
 
   async function signOut() {
@@ -30,7 +32,7 @@ export function SignOutButton() {
       disabled={busy}
       className="text-xs text-neutral-400 underline underline-offset-4 hover:text-neutral-700 disabled:no-underline"
     >
-      {busy ? 'Signing out…' : 'Sign out'}
+      {busy ? t.shell.signingOut : t.shell.signOut}
     </button>
   );
 }

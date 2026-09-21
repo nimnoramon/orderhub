@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { OrderStatus } from '@/generated/prisma/enums';
+import { useT } from '@/components/ui/I18nProvider';
 import type { ChannelRef } from '@/lib/types';
 
 /**
@@ -14,6 +15,7 @@ export function OrderFilters({ channels }: { channels: ChannelRef[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const t = useT();
   const [pending, startTransition] = useTransition();
 
   const activeQuery = searchParams.get('query') ?? '';
@@ -58,36 +60,36 @@ export function OrderFilters({ channels }: { channels: ChannelRef[] }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <label className="relative">
-        <span className="sr-only">Search orders</span>
+        <span className="sr-only">{t.orders.filters.searchLabel}</span>
         <input
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search customer or order id"
+          placeholder={t.orders.filters.searchPlaceholder}
           className="w-60 rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm placeholder:text-neutral-400 focus:border-teal-600 focus:outline-none"
         />
       </label>
 
       <label className="flex items-center gap-2 text-sm text-neutral-500">
-        Status
+        {t.common.status}
         <select value={status} onChange={(e) => setParam('status', e.target.value)} className={select}>
-          <option value="">All</option>
+          <option value="">{t.common.all}</option>
           {Object.values(OrderStatus).map((value) => (
             <option key={value} value={value}>
-              {value}
+              {t.orderStatus[value]}
             </option>
           ))}
         </select>
       </label>
 
       <label className="flex items-center gap-2 text-sm text-neutral-500">
-        Channel
+        {t.common.channel}
         <select
           value={channelId}
           onChange={(e) => setParam('channelId', e.target.value)}
           className={select}
         >
-          <option value="">All</option>
+          <option value="">{t.common.all}</option>
           {channels.map((channel) => (
             <option key={channel.id} value={channel.id}>
               {channel.name}
@@ -97,7 +99,7 @@ export function OrderFilters({ channels }: { channels: ChannelRef[] }) {
       </label>
 
       <label className="flex items-center gap-2 text-sm text-neutral-500">
-        Placed
+        {t.orders.filters.placed}
         {/* Both ends are inclusive whole days in UTC — see src/lib/dates.ts. */}
         <input
           type="date"
@@ -122,7 +124,7 @@ export function OrderFilters({ channels }: { channels: ChannelRef[] }) {
           onClick={() => push(new URLSearchParams())}
           className="text-sm text-neutral-500 underline underline-offset-4 hover:text-neutral-900"
         >
-          Clear
+          {t.common.clear}
         </button>
       )}
 
@@ -130,7 +132,7 @@ export function OrderFilters({ channels }: { channels: ChannelRef[] }) {
         aria-live="polite"
         className={`text-xs text-neutral-400 ${pending ? 'opacity-100' : 'opacity-0'}`}
       >
-        filtering…
+        {t.common.filtering}
       </span>
     </div>
   );

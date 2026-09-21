@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { formatCents } from '@/lib/money';
+import { useT } from '@/components/ui/I18nProvider';
 import { AdjustStockDialog } from '@/components/stock/AdjustStockDialog';
 import type { VariantWithLevels, WarehouseRef } from '@/lib/types';
 
@@ -23,6 +24,7 @@ const describe = (attributes: Record<string, string>) =>
  * against a specific warehouse, never against "the product".
  */
 export function StockGrid({ variants, warehouses }: Props) {
+  const t = useT();
   const [target, setTarget] = useState<Target | null>(null);
 
   return (
@@ -31,14 +33,14 @@ export function StockGrid({ variants, warehouses }: Props) {
         <table className="w-full border-collapse">
           <thead className="border-b border-neutral-200 bg-neutral-50/60">
             <tr>
-              <th className={`${TH} text-left`}>Variant</th>
-              <th className={`${TH} text-right`}>Price</th>
+              <th className={`${TH} text-left`}>{t.stock.grid.variant}</th>
+              <th className={`${TH} text-right`}>{t.stock.grid.price}</th>
               {warehouses.map((warehouse) => (
                 <th key={warehouse.id} className={`${TH} text-right`} title={warehouse.name}>
                   {warehouse.code}
                 </th>
               ))}
-              <th className={`${TH} text-right`}>Total</th>
+              <th className={`${TH} text-right`}>{t.stock.grid.total}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
@@ -61,7 +63,7 @@ export function StockGrid({ variants, warehouses }: Props) {
                       <button
                         type="button"
                         onClick={() => setTarget({ variant, warehouse, onHand: cell.onHand })}
-                        title={`Adjust ${variant.sku} in ${warehouse.name}`}
+                        title={t.stock.grid.adjustTitle(variant.sku, warehouse.name)}
                         className={
                           cell.lowStock
                             ? 'w-16 rounded-md bg-amber-50 px-2 py-1 text-sm font-medium tabular-nums text-amber-800 ring-1 ring-inset ring-amber-600/20 hover:bg-amber-100'
@@ -83,10 +85,7 @@ export function StockGrid({ variants, warehouses }: Props) {
         </table>
       </div>
 
-      <p className="pt-2 text-xs text-neutral-400">
-        Click any cell to write an adjustment. Amber marks a warehouse at or below the low-stock
-        threshold.
-      </p>
+      <p className="pt-2 text-xs text-neutral-400">{t.stock.grid.hint}</p>
 
       {target && (
         <AdjustStockDialog

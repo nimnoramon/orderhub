@@ -1,6 +1,7 @@
 import { orderListQuery } from '@/lib/schemas/orders';
 import { cleanParams } from '@/lib/schemas/query';
 import { requireSignedIn } from '@/server/auth/session';
+import { serverMessages } from '@/server/i18n/locale';
 import { listOrders } from '@/server/services/orders';
 import { OrderFilters } from '@/components/orders/OrderFilters';
 import { OrdersTable } from '@/components/orders/OrdersTable';
@@ -16,6 +17,7 @@ export default async function OrdersPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { merchantId } = await requireSignedIn();
+  const t = await serverMessages();
   const params = cleanParams(await searchParams);
 
   // A hand-edited URL degrades to the default view rather than an error page.
@@ -29,10 +31,8 @@ export default async function OrdersPage({
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-lg font-semibold tracking-tight text-neutral-900">Orders</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Every channel in one list — {page.total} order{page.total === 1 ? '' : 's'} match.
-        </p>
+        <h1 className="text-lg font-semibold tracking-tight text-neutral-900">{t.orders.title}</h1>
+        <p className="mt-1 text-sm text-neutral-500">{t.orders.subtitle(page.total)}</p>
       </header>
 
       <OrderFilters channels={channels} />

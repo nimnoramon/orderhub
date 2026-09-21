@@ -1,4 +1,13 @@
 import type { OrderStatus, ProductStatus, SyncJobStatus } from '@/generated/prisma/enums';
+import { serverMessages } from '@/server/i18n/locale';
+
+/**
+ * The pills read their own label out of the request's dictionary rather than
+ * taking one as a prop, which would have meant threading a string through nine
+ * call sites. The cost is that they are server components — `serverMessages`
+ * reads a cookie — and every screen that renders a pill already is one. A
+ * client component that needs a status word asks `useT()` for the same key.
+ */
 
 const PILL = 'inline-flex rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset';
 
@@ -8,8 +17,9 @@ const STYLES: Record<ProductStatus, string> = {
   archived: 'bg-neutral-100 text-neutral-400 ring-neutral-400/20',
 };
 
-export function StatusPill({ status }: { status: ProductStatus }) {
-  return <span className={`${PILL} ${STYLES[status]}`}>{status}</span>;
+export async function StatusPill({ status }: { status: ProductStatus }) {
+  const t = await serverMessages();
+  return <span className={`${PILL} ${STYLES[status]}`}>{t.productStatus[status]}</span>;
 }
 
 /** Colour follows the lifecycle: nothing yet, money in, moving, gone, stopped. */
@@ -21,8 +31,9 @@ const ORDER_STYLES: Record<OrderStatus, string> = {
   cancelled: 'bg-rose-50 text-rose-800 ring-rose-600/20',
 };
 
-export function OrderStatusPill({ status }: { status: OrderStatus }) {
-  return <span className={`${PILL} ${ORDER_STYLES[status]}`}>{status}</span>;
+export async function OrderStatusPill({ status }: { status: OrderStatus }) {
+  const t = await serverMessages();
+  return <span className={`${PILL} ${ORDER_STYLES[status]}`}>{t.orderStatus[status]}</span>;
 }
 
 /**
@@ -52,14 +63,16 @@ const SYNC_STYLES: Record<SyncJobStatus, string> = {
   failed: 'bg-rose-50 text-rose-800 ring-rose-600/20',
 };
 
-export function SyncStatusPill({ status }: { status: SyncJobStatus }) {
-  return <span className={`${PILL} ${SYNC_STYLES[status]}`}>{status}</span>;
+export async function SyncStatusPill({ status }: { status: SyncJobStatus }) {
+  const t = await serverMessages();
+  return <span className={`${PILL} ${SYNC_STYLES[status]}`}>{t.syncStatus[status]}</span>;
 }
 
-export function LowStockPill() {
+export async function LowStockPill() {
+  const t = await serverMessages();
   return (
     <span className="inline-flex rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
-      low
+      {t.products.low}
     </span>
   );
 }

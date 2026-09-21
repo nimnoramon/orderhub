@@ -96,7 +96,7 @@ model Variant {
   sku        String
   attributes Json            @default("{}")
   priceCents Int
-  currency   String          @default("USD")
+  currency   String          @default("THB")
   movements  StockMovement[]
   orderItems OrderItem[]
 
@@ -166,7 +166,7 @@ model Order {
   status       OrderStatus  @default(created)
   customerName String
   totalCents   Int
-  currency     String       @default("USD")
+  currency     String       @default("THB")
   placedAt     DateTime
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { formatDate } from '@/lib/dates';
 import { requireSignedIn } from '@/server/auth/session';
+import { serverMessages } from '@/server/i18n/locale';
 import { AppError } from '@/server/http/errors';
 import { getProduct } from '@/server/services/products';
 import { MovementsTable } from '@/components/stock/MovementsTable';
@@ -21,6 +22,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { merchantId } = await requireSignedIn();
+  const t = await serverMessages();
   const { id } = await params;
 
   const product = await getProduct(merchantId, id).catch((error: unknown) => {
@@ -37,31 +39,35 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     <div className="flex flex-col gap-6">
       <div>
         <Link href="/products" className="text-sm text-neutral-500 hover:text-neutral-900">
-          ← Products
+          ← {t.productDetail.back}
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-lg font-semibold tracking-tight text-neutral-900">{product.name}</h1>
           <StatusPill status={product.status} />
         </div>
         <p className="mt-1 text-sm text-neutral-500">
-          <span className="font-mono text-xs">{product.sku}</span> · created{' '}
-          {formatDate(product.createdAt)} · updated {formatDate(product.updatedAt)}
+          <span className="font-mono text-xs">{product.sku}</span> ·{' '}
+          {t.productDetail.meta(formatDate(product.createdAt), formatDate(product.updatedAt))}
         </p>
       </div>
 
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Stat label="On hand" value={product.onHand} />
-        <Stat label="Variants" value={product.variants.length} />
-        <Stat label="Low warehouses" value={lowWarehouses} />
+        <Stat label={t.productDetail.onHand} value={product.onHand} />
+        <Stat label={t.productDetail.variants} value={product.variants.length} />
+        <Stat label={t.productDetail.lowWarehouses} value={lowWarehouses} />
       </dl>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-neutral-900">Stock by warehouse</h2>
+        <h2 className="mb-2 text-sm font-semibold text-neutral-900">
+          {t.productDetail.stockSection}
+        </h2>
         <StockGrid variants={product.variants} warehouses={product.warehouses} />
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-neutral-900">Recent movements</h2>
+        <h2 className="mb-2 text-sm font-semibold text-neutral-900">
+          {t.productDetail.movementsSection}
+        </h2>
         <MovementsTable movements={product.recentMovements} />
       </section>
     </div>

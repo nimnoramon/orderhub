@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ProductStatus } from '@/generated/prisma/enums';
+import { DEFAULT_CURRENCY } from '@/lib/money';
 import { PAGE_SIZE } from '@/lib/schemas/query';
 
 export const productListQuery = z.object({
@@ -14,7 +15,7 @@ export const variantInput = z.object({
   sku: z.string().trim().min(1).max(64),
   priceCents: z.number().int().min(0),
   attributes: z.record(z.string(), z.string()).default({}),
-  currency: z.string().length(3).default('USD'),
+  currency: z.string().length(3).default(DEFAULT_CURRENCY),
 });
 
 export const createProduct = z.object({

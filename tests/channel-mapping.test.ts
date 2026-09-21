@@ -28,7 +28,7 @@ const bOrder = {
   // B sends its own status vocabulary. The connector reads none of it, and this
   // payload keeps the field to prove that an unmapped field is simply dropped.
   state: 'DISPATCHED',
-  currency_code: 'USD',
+  currency_code: 'THB',
   amount_total: '349.70',
   buyer: { display_name: 'Cai Duarte' },
   line_items: [
@@ -101,7 +101,7 @@ describe('an order, in B-speak and in ours', () => {
       externalId: 'ORD-B-770123',
       placedAt: new Date('2026-09-17T14:00:00.000Z'),
       customerName: 'Cai Duarte',
-      currency: 'USD',
+      currency: 'THB',
       totalCents: 34970,
       lines: [
         { sku: 'BAG-1002-24L', qty: 2, unitPriceCents: 12990 },
@@ -141,7 +141,7 @@ describe('a catalog batch, out and back', () => {
     sku: 'AUD-1001-BLACK',
     title: 'Sturdy Audio speaker',
     priceCents: 2499,
-    currency: 'USD',
+    currency: 'THB',
     attributes: { colour: 'Black' },
   };
 
@@ -152,7 +152,7 @@ describe('a catalog batch, out and back', () => {
           sku_code: 'AUD-1001-BLACK',
           name: 'Sturdy Audio speaker',
           price: '24.99',
-          currency_code: 'USD',
+          currency_code: 'THB',
           attributes: [{ name: 'colour', value: 'Black' }],
         },
       ],

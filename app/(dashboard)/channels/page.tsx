@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requireSignedIn } from '@/server/auth/session';
+import { serverMessages } from '@/server/i18n/locale';
 import { listChannelSummaries } from '@/server/services/channels';
 import { ChannelCard } from '@/components/channels/ChannelCard';
 
@@ -8,17 +9,17 @@ export const dynamic = 'force-dynamic';
 
 export default async function ChannelsPage() {
   const { merchantId } = await requireSignedIn();
+  const t = await serverMessages();
   const channels = await listChannelSummaries(merchantId);
 
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-lg font-semibold tracking-tight text-neutral-900">Channels</h1>
+        <h1 className="text-lg font-semibold tracking-tight text-neutral-900">{t.channels.title}</h1>
         <p className="mt-1 text-sm text-neutral-500">
-          The mock marketplaces run inside this deployment and are reached over HTTP like any
-          third party — own API key, own field names, own batch limit. Every run lands in the{' '}
+          {t.channels.subtitleLead}{' '}
           <Link href="/sync-log" className="underline underline-offset-4 hover:text-neutral-900">
-            sync log
+            {t.channels.subtitleLink}
           </Link>
           .
         </p>

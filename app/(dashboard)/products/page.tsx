@@ -1,6 +1,7 @@
 import { productListQuery } from '@/lib/schemas/products';
 import { cleanParams } from '@/lib/schemas/query';
 import { requireSignedIn } from '@/server/auth/session';
+import { serverMessages } from '@/server/i18n/locale';
 import { listProducts } from '@/server/services/products';
 import { ProductFilters } from '@/components/products/ProductFilters';
 import { ProductsTable } from '@/components/products/ProductsTable';
@@ -16,6 +17,7 @@ export default async function ProductsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { merchantId } = await requireSignedIn();
+  const t = await serverMessages();
   const params = cleanParams(await searchParams);
 
   // A hand-edited URL should degrade to the default view, not to an error page.
@@ -29,11 +31,8 @@ export default async function ProductsPage({
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-lg font-semibold tracking-tight text-neutral-900">Products &amp; stock</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Levels are derived from the movement ledger — {page.total} product
-          {page.total === 1 ? '' : 's'} match.
-        </p>
+        <h1 className="text-lg font-semibold tracking-tight text-neutral-900">{t.products.title}</h1>
+        <p className="mt-1 text-sm text-neutral-500">{t.products.subtitle(page.total)}</p>
       </header>
 
       <ProductFilters />

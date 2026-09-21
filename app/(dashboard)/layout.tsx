@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { requireSignedIn } from '@/server/auth/session';
+import { serverMessages } from '@/server/i18n/locale';
 import { DemoNotice } from '@/components/ui/DemoNotice';
+import { LocaleSwitch } from '@/components/ui/LocaleSwitch';
 import { SideNav } from '@/components/ui/SideNav';
 import { SignOutButton } from '@/components/auth/SignOutButton';
 
@@ -14,6 +16,7 @@ import { SignOutButton } from '@/components/auth/SignOutButton';
  */
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await requireSignedIn();
+  const t = await serverMessages();
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-8 md:flex-row md:py-10">
@@ -21,7 +24,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         <Link href="/" className="text-sm font-semibold tracking-tight text-neutral-900">
           OrderHub
         </Link>
-        <p className="mt-0.5 mb-5 text-xs text-neutral-400">Northwind Supply Co. · demo data</p>
+        <p className="mt-0.5 mb-3 text-xs text-neutral-400">{t.shell.tagline}</p>
+        <LocaleSwitch className="mb-4 self-start" />
         <SideNav />
 
         <div className="mt-5 border-t border-neutral-200 pt-3 md:mt-auto">

@@ -1,4 +1,5 @@
 import { formatDateTime } from '@/lib/dates';
+import { serverMessages } from '@/server/i18n/locale';
 import { OrderStatusPill } from '@/components/ui/StatusPill';
 import type { OrderEventItem } from '@/lib/types';
 
@@ -8,11 +9,13 @@ import type { OrderEventItem } from '@/lib/types';
  * and it is why a transition writes an event in the same transaction as the
  * status change rather than after it.
  */
-export function OrderTimeline({ events }: { events: OrderEventItem[] }) {
+export async function OrderTimeline({ events }: { events: OrderEventItem[] }) {
+  const t = await serverMessages();
+
   if (events.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-8 text-center text-sm text-neutral-500">
-        No status changes recorded.
+        {t.orderDetail.timeline.empty}
       </p>
     );
   }
@@ -37,12 +40,12 @@ export function OrderTimeline({ events }: { events: OrderEventItem[] }) {
                 <span className="text-neutral-300">→</span>
               </>
             ) : (
-              <span className="text-xs text-neutral-400">placed</span>
+              <span className="text-xs text-neutral-400">{t.orderDetail.timeline.placed}</span>
             )}
             <OrderStatusPill status={event.toStatus} />
           </span>
 
-          <span className="text-xs text-neutral-500">by {event.actor}</span>
+          <span className="text-xs text-neutral-500">{t.orderDetail.timeline.by(event.actor)}</span>
           {event.note && <span className="text-xs text-neutral-500">— {event.note}</span>}
         </li>
       ))}

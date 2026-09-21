@@ -1,17 +1,20 @@
 import Link from 'next/link';
 import { formatDate } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
+import { serverMessages } from '@/server/i18n/locale';
 import { OrderStatusPill } from '@/components/ui/StatusPill';
 import type { OrderListItem } from '@/lib/types';
 
 const TH = 'px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-400';
 const TD = 'px-4 py-2.5 text-sm text-neutral-700';
 
-export function OrdersTable({ orders }: { orders: OrderListItem[] }) {
+export async function OrdersTable({ orders }: { orders: OrderListItem[] }) {
+  const t = await serverMessages();
+
   if (orders.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-12 text-center text-sm text-neutral-500">
-        No orders match those filters.
+        {t.orders.empty}
       </p>
     );
   }
@@ -21,13 +24,13 @@ export function OrdersTable({ orders }: { orders: OrderListItem[] }) {
       <table className="w-full border-collapse">
         <thead className="border-b border-neutral-200 bg-neutral-50/60">
           <tr>
-            <th className={TH}>Order</th>
-            <th className={TH}>Channel</th>
-            <th className={TH}>Customer</th>
-            <th className={TH}>Status</th>
-            <th className={`${TH} text-right`}>Items</th>
-            <th className={`${TH} text-right`}>Total</th>
-            <th className={`${TH} text-right`}>Placed</th>
+            <th className={TH}>{t.orders.table.order}</th>
+            <th className={TH}>{t.orders.table.channel}</th>
+            <th className={TH}>{t.orders.table.customer}</th>
+            <th className={TH}>{t.orders.table.status}</th>
+            <th className={`${TH} text-right`}>{t.orders.table.items}</th>
+            <th className={`${TH} text-right`}>{t.orders.table.total}</th>
+            <th className={`${TH} text-right`}>{t.orders.table.placed}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">

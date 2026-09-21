@@ -1,3 +1,4 @@
+import { DEFAULT_CURRENCY } from '@/lib/money';
 import { isUniqueViolation, prisma } from '@/server/db';
 import { AppError, notFound } from '@/server/http/errors';
 import { deriveLevels } from '@/server/stock/levels';
@@ -67,7 +68,7 @@ export async function listProducts(
       status: product.status,
       variantCount: product.variants.length,
       priceRangeCents: priceRange(product.variants),
-      currency: product.variants[0]?.currency ?? 'USD',
+      currency: product.variants[0]?.currency ?? DEFAULT_CURRENCY,
       onHand: levels.reduce((total, level) => total + level.onHand, 0),
       lowStock: levels.some((level) => level.lowStock),
       updatedAt: product.updatedAt.toISOString(),

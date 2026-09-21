@@ -298,7 +298,8 @@ export function orderAt(index: number): OrderPayload {
     return {
       item_code: `${listing.code}-${productNumber}-${random.pick(listing.values)}`,
       units: random.int(1, 3),
-      unitCents: random.int(9, 249) * 100 + 99,
+      // B quotes baht, the way a price tag here is written.
+      unitCents: (random.int(2, 89) * 100 + 90) * 100,
     };
   });
 
@@ -308,7 +309,7 @@ export function orderAt(index: number): OrderPayload {
     order_reference: `ORD-B-${770_000 + index}`,
     created_on: formatTimestamp(timeOf(index)),
     state: random.pick(STATES),
-    currency_code: 'USD',
+    currency_code: 'THB',
     amount_total: formatAmount(totalCents),
     buyer: { display_name: `${random.pick(FIRST_NAMES)} ${random.pick(LAST_NAMES)}` },
     line_items: lines.map((line) => ({

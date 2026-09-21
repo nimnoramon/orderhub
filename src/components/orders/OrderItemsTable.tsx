@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { formatCents } from '@/lib/money';
+import { serverMessages } from '@/server/i18n/locale';
 import type { OrderDetail } from '@/lib/types';
 
 const TH = 'px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-400';
@@ -7,17 +8,19 @@ const TD = 'px-4 py-2.5 text-sm text-neutral-700';
 
 const describe = (attributes: Record<string, string>) => Object.values(attributes).join(' · ');
 
-export function OrderItemsTable({ order }: { order: OrderDetail }) {
+export async function OrderItemsTable({ order }: { order: OrderDetail }) {
+  const t = await serverMessages();
+
   return (
     <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
       <table className="w-full border-collapse">
         <thead className="border-b border-neutral-200 bg-neutral-50/60">
           <tr>
-            <th className={TH}>Item</th>
-            <th className={TH}>SKU</th>
-            <th className={`${TH} text-right`}>Qty</th>
-            <th className={`${TH} text-right`}>Unit</th>
-            <th className={`${TH} text-right`}>Line total</th>
+            <th className={TH}>{t.orderDetail.table.item}</th>
+            <th className={TH}>{t.orderDetail.table.sku}</th>
+            <th className={`${TH} text-right`}>{t.orderDetail.table.qty}</th>
+            <th className={`${TH} text-right`}>{t.orderDetail.table.unit}</th>
+            <th className={`${TH} text-right`}>{t.orderDetail.table.lineTotal}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
@@ -45,7 +48,7 @@ export function OrderItemsTable({ order }: { order: OrderDetail }) {
         <tfoot className="border-t border-neutral-200 bg-neutral-50/60">
           <tr>
             <td className={`${TD} font-medium text-neutral-900`} colSpan={4}>
-              Order total
+              {t.orderDetail.table.orderTotal}
             </td>
             <td className={`${TD} text-right font-semibold tabular-nums text-neutral-900`}>
               {formatCents(order.totalCents, order.currency)}
@@ -56,8 +59,10 @@ export function OrderItemsTable({ order }: { order: OrderDetail }) {
           {order.lineTotalCents !== order.totalCents && (
             <tr>
               <td className={`${TD} text-xs text-neutral-500`} colSpan={5}>
-                Lines sum to {formatCents(order.lineTotalCents, order.currency)} — the channel
-                charged {formatCents(order.totalCents, order.currency)}.
+                {t.orderDetail.table.mismatch(
+                  formatCents(order.lineTotalCents, order.currency),
+                  formatCents(order.totalCents, order.currency),
+                )}
               </td>
             </tr>
           )}

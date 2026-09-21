@@ -163,7 +163,10 @@ async function main() {
       productId: product.id,
       sku: `${product.sku}-${value.toUpperCase().replace(/[^A-Z0-9]/g, '')}`,
       attributes: { [category.attr]: value },
-      priceCents: int(9, 249) * 100 + 99,
+      // Baht, in satang. Thai retail prices land on round hundreds ending in
+      // ninety — ฿290, ฿1,290 — so the seed mints them that way rather than
+      // converting a dollar figure and leaving .99 endings behind.
+      priceCents: (int(2, 89) * 100 + 90) * 100,
     }));
   });
   await prisma.variant.createMany({ data: variantRows });

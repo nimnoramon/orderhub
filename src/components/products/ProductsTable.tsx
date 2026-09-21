@@ -1,16 +1,19 @@
 import Link from 'next/link';
 import { formatCentsRange } from '@/lib/money';
+import { serverMessages } from '@/server/i18n/locale';
 import { LowStockPill, StatusPill } from '@/components/ui/StatusPill';
 import type { ProductListItem } from '@/lib/types';
 
 const TH = 'px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-400';
 const TD = 'px-4 py-2.5 text-sm text-neutral-700';
 
-export function ProductsTable({ products }: { products: ProductListItem[] }) {
+export async function ProductsTable({ products }: { products: ProductListItem[] }) {
+  const t = await serverMessages();
+
   if (products.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-12 text-center text-sm text-neutral-500">
-        No products match those filters.
+        {t.products.empty}
       </p>
     );
   }
@@ -20,12 +23,12 @@ export function ProductsTable({ products }: { products: ProductListItem[] }) {
       <table className="w-full border-collapse">
         <thead className="border-b border-neutral-200 bg-neutral-50/60">
           <tr>
-            <th className={TH}>SKU</th>
-            <th className={TH}>Name</th>
-            <th className={TH}>Status</th>
-            <th className={`${TH} text-right`}>Variants</th>
-            <th className={`${TH} text-right`}>Price</th>
-            <th className={`${TH} text-right`}>On hand</th>
+            <th className={TH}>{t.products.table.sku}</th>
+            <th className={TH}>{t.products.table.name}</th>
+            <th className={TH}>{t.products.table.status}</th>
+            <th className={`${TH} text-right`}>{t.products.table.variants}</th>
+            <th className={`${TH} text-right`}>{t.products.table.price}</th>
+            <th className={`${TH} text-right`}>{t.products.table.onHand}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">

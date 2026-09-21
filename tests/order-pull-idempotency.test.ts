@@ -57,7 +57,7 @@ const orderAt = (index: number): ExternalOrder => ({
   externalId: `ORD-B-${770_000 + index}`,
   placedAt: new Date(Date.UTC(2026, 8, 18) + index * 3_600_000),
   customerName: 'Cai Duarte',
-  currency: 'USD',
+  currency: 'THB',
   totalCents: 1_000 + index,
   lines: [{ sku: 'BAG-1002-24L', qty: 1, unitPriceCents: 1_000 + index }],
 });

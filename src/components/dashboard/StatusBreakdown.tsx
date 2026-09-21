@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { OrderStatus } from '@/generated/prisma/enums';
+import { serverMessages } from '@/server/i18n/locale';
 import { ORDER_BAR, OrderStatusPill } from '@/components/ui/StatusPill';
 import type { DashboardSummary } from '@/lib/types';
 
@@ -16,27 +17,30 @@ const LIFECYCLE = [
   OrderStatus.cancelled,
 ] as const;
 
-export function StatusBreakdown({
+export async function StatusBreakdown({
   ordersByStatus,
 }: {
   ordersByStatus: DashboardSummary['ordersByStatus'];
 }) {
+  const t = await serverMessages();
   const total = LIFECYCLE.reduce((sum, status) => sum + ordersByStatus[status], 0);
 
   return (
     <section className="rounded-lg border border-neutral-200 bg-white">
       <header className="flex items-baseline gap-2 border-b border-neutral-100 px-4 py-3">
-        <h2 className="text-sm font-semibold text-neutral-900">Orders by status</h2>
-        <span className="text-xs text-neutral-400 tabular-nums">{total} in total</span>
+        <h2 className="text-sm font-semibold text-neutral-900">{t.overview.breakdown.title}</h2>
+        <span className="text-xs text-neutral-400 tabular-nums">
+          {t.overview.breakdown.total(total)}
+        </span>
       </header>
 
       {total === 0 ? (
         <p className="px-4 py-8 text-center text-sm text-neutral-500">
-          No orders yet. Pull a feed from the{' '}
+          {t.overview.breakdown.emptyLead}{' '}
           <Link href="/channels" className="underline underline-offset-4 hover:text-neutral-900">
-            channels
+            {t.overview.breakdown.emptyLink}
           </Link>{' '}
-          screen, or run <code className="font-mono text-xs">pnpm db:seed</code>.
+          {t.overview.breakdown.emptyTail} <code className="font-mono text-xs">pnpm db:seed</code>.
         </p>
       ) : (
         <div className="px-4 py-4">
@@ -45,7 +49,7 @@ export function StatusBreakdown({
           <div
             className="flex h-2 overflow-hidden rounded-full bg-neutral-100"
             role="img"
-            aria-label={LIFECYCLE.map((s) => `${ordersByStatus[s]} ${s}`).join(', ')}
+            aria-label={LIFECYCLE.map((s) => `${ordersByStatus[s]} ${t.orderStatus[s]}`).join(', ')}
           >
             {LIFECYCLE.filter((status) => ordersByStatus[status] > 0).map((status) => (
               <div

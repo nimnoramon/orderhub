@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { MANUAL_REASONS, createMovement } from '@/lib/schemas/stock';
+import { useT } from '@/components/ui/I18nProvider';
 import type { WarehouseRef } from '@/lib/types';
 
 type Props = {
@@ -24,6 +25,7 @@ type Reason = (typeof MANUAL_REASONS)[number];
  */
 export function AdjustStockDialog({ variant, warehouse, onHand, onClose }: Props) {
   const router = useRouter();
+  const t = useT();
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   const [direction, setDirection] = useState<'add' | 'remove'>('add');
@@ -65,7 +67,7 @@ export function AdjustStockDialog({ variant, warehouse, onHand, onClose }: Props
     if (!response.ok) {
       // The server is the authority on whether this adjustment is allowed — the
       // preview below is a courtesy, not the check.
-      setError(body?.error?.message ?? 'The adjustment could not be saved');
+      setError(body?.error?.message ?? t.stock.dialog.failed);
       setSaving(false);
       return;
     }
@@ -86,10 +88,10 @@ export function AdjustStockDialog({ variant, warehouse, onHand, onClose }: Props
     >
       <form onSubmit={submit} className="flex flex-col gap-4 p-5">
         <div>
-          <h2 className="text-sm font-semibold text-neutral-900">Adjust stock</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">{t.stock.dialog.title}</h2>
           <p className="mt-1 text-xs text-neutral-500">
-            <span className="font-mono">{variant.sku}</span> in {warehouse.name} ({warehouse.code}) —{' '}
-            <span className="tabular-nums">{onHand}</span> on hand
+            <span className="font-mono">{variant.sku}</span>{' '}
+            {t.stock.dialog.context(warehouse.name, warehouse.code, onHand)}
           </p>
         </div>
 
@@ -106,13 +108,13 @@ export function AdjustStockDialog({ variant, warehouse, onHand, onClose }: Props
                     : 'rounded px-3 py-1 text-sm text-neutral-500 hover:text-neutral-900'
                 }
               >
-                {value === 'add' ? 'Add' : 'Remove'}
+                {value === 'add' ? t.stock.dialog.add : t.stock.dialog.remove}
               </button>
             ))}
           </div>
 
           <label className="flex-1">
-            <span className="sr-only">Quantity</span>
+            <span className="sr-only">{t.stock.dialog.qtyLabel}</span>
             <input
               type="number"
               min={1}
@@ -126,7 +128,7 @@ export function AdjustStockDialog({ variant, warehouse, onHand, onClose }: Props
         </div>
 
         <label className="block">
-          <span className={label}>Reason</span>
+          <span className={label}>{t.stock.dialog.reason}</span>
           <select
             value={reason}
             onChange={(event) => setReason(event.target.value as Reason)}
@@ -134,29 +136,29 @@ export function AdjustStockDialog({ variant, warehouse, onHand, onClose }: Props
           >
             {MANUAL_REASONS.map((value) => (
               <option key={value} value={value}>
-                {value}
+                {t.stockReason[value]}
               </option>
             ))}
           </select>
         </label>
 
         <label className="block">
-          <span className={label}>Note</span>
+          <span className={label}>{t.stock.dialog.note}</span>
           <input
             type="text"
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Cycle count, damaged in transit…"
+            placeholder={t.stock.dialog.notePlaceholder}
             className={field}
           />
         </label>
 
         <p className="rounded-md bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
-          Writes one movement of{' '}
+          {t.stock.dialog.previewLead}{' '}
           <span className="font-medium tabular-nums text-neutral-900">
             {delta > 0 ? `+${delta}` : delta}
           </span>
-          . {warehouse.code} would hold <span className="tabular-nums">{resulting}</span>.
+          {t.stock.dialog.previewTail(warehouse.code, resulting)}
         </p>
 
         {error && (
@@ -171,14 +173,14 @@ export function AdjustStockDialog({ variant, warehouse, onHand, onClose }: Props
             onClick={() => dialogRef.current?.close()}
             className="rounded-md px-3 py-1.5 text-sm text-neutral-600 hover:text-neutral-900"
           >
-            Cancel
+            {t.common.cancel}
           </button>
           <button
             type="submit"
             disabled={saving}
             className="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Save movement'}
+            {saving ? t.common.saving : t.stock.dialog.save}
           </button>
         </div>
       </form>

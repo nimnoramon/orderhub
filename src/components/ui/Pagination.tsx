@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { serverMessages } from '@/server/i18n/locale';
 
 type Props = {
   page: { page: number; pageSize: number; total: number; pageCount: number };
@@ -12,7 +13,8 @@ const hrefFor = (basePath: string, params: Record<string, string>, page: number)
   return `${basePath}?${next.toString()}`;
 };
 
-export function Pagination({ page, params, basePath }: Props) {
+export async function Pagination({ page, params, basePath }: Props) {
+  const t = await serverMessages();
   const first = page.total === 0 ? 0 : (page.page - 1) * page.pageSize + 1;
   const last = Math.min(page.page * page.pageSize, page.total);
 
@@ -23,23 +25,21 @@ export function Pagination({ page, params, basePath }: Props) {
 
   return (
     <div className="flex items-center justify-between gap-4 pt-4 text-sm text-neutral-500">
-      <p className="tabular-nums">
-        {first}–{last} of {page.total}
-      </p>
+      <p className="tabular-nums">{t.common.range(first, last, page.total)}</p>
       <div className="flex gap-2">
         {page.page > 1 ? (
           <Link href={hrefFor(basePath, params, page.page - 1)} className={linkClass}>
-            Previous
+            {t.common.previous}
           </Link>
         ) : (
-          <span className={mutedClass}>Previous</span>
+          <span className={mutedClass}>{t.common.previous}</span>
         )}
         {page.page < page.pageCount ? (
           <Link href={hrefFor(basePath, params, page.page + 1)} className={linkClass}>
-            Next
+            {t.common.next}
           </Link>
         ) : (
-          <span className={mutedClass}>Next</span>
+          <span className={mutedClass}>{t.common.next}</span>
         )}
       </div>
     </div>

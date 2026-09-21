@@ -1,6 +1,7 @@
 import { cleanParams } from '@/lib/schemas/query';
 import { syncJobListQuery } from '@/lib/schemas/sync';
 import { requireSignedIn } from '@/server/auth/session';
+import { serverMessages } from '@/server/i18n/locale';
 import { listSyncJobs } from '@/server/services/sync';
 import { SyncJobFilters } from '@/components/sync/SyncJobFilters';
 import { SyncJobsTable } from '@/components/sync/SyncJobsTable';
@@ -16,6 +17,7 @@ export default async function SyncLogPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { merchantId } = await requireSignedIn();
+  const t = await serverMessages();
   const params = cleanParams(await searchParams);
 
   // A hand-edited URL degrades to the default view rather than an error page.
@@ -29,11 +31,11 @@ export default async function SyncLogPage({
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-lg font-semibold tracking-tight text-neutral-900">Sync log</h1>
+        <h1 className="text-lg font-semibold tracking-tight text-neutral-900">{t.syncLog.title}</h1>
         <p className="mt-1 text-sm text-neutral-500">
-          Every run against a channel, and every item it could not deliver. A run that ends{' '}
-          <span className="font-medium text-amber-700">partial</span> did most of its work — open it
-          to see what is missing.
+          {t.syncLog.subtitleLead}{' '}
+          <span className="font-medium text-amber-700">{t.syncStatus.partial}</span>{' '}
+          {t.syncLog.subtitleTail}
         </p>
       </header>
 

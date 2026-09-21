@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
 import { SyncJobStatus, SyncJobType } from '@/generated/prisma/enums';
-import { JOB_TYPE_LABELS } from '@/components/sync/SyncJobsTable';
+import { useT } from '@/components/ui/I18nProvider';
 import type { ChannelRef } from '@/lib/types';
 
 /**
@@ -15,6 +15,7 @@ export function SyncJobFilters({ channels }: { channels: ChannelRef[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const t = useT();
   const [pending, startTransition] = useTransition();
 
   const channelId = searchParams.get('channelId') ?? '';
@@ -39,13 +40,13 @@ export function SyncJobFilters({ channels }: { channels: ChannelRef[] }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <label className="flex items-center gap-2 text-sm text-neutral-500">
-        Channel
+        {t.common.channel}
         <select
           value={channelId}
           onChange={(event) => setParam('channelId', event.target.value)}
           className={select}
         >
-          <option value="">All</option>
+          <option value="">{t.common.all}</option>
           {channels.map((channel) => (
             <option key={channel.id} value={channel.id}>
               {channel.name}
@@ -55,32 +56,32 @@ export function SyncJobFilters({ channels }: { channels: ChannelRef[] }) {
       </label>
 
       <label className="flex items-center gap-2 text-sm text-neutral-500">
-        Status
+        {t.common.status}
         <select
           value={status}
           onChange={(event) => setParam('status', event.target.value)}
           className={select}
         >
-          <option value="">All</option>
+          <option value="">{t.common.all}</option>
           {Object.values(SyncJobStatus).map((value) => (
             <option key={value} value={value}>
-              {value}
+              {t.syncStatus[value]}
             </option>
           ))}
         </select>
       </label>
 
       <label className="flex items-center gap-2 text-sm text-neutral-500">
-        Job
+        {t.syncLog.job}
         <select
           value={type}
           onChange={(event) => setParam('type', event.target.value)}
           className={select}
         >
-          <option value="">All</option>
+          <option value="">{t.common.all}</option>
           {Object.values(SyncJobType).map((value) => (
             <option key={value} value={value}>
-              {JOB_TYPE_LABELS[value]}
+              {t.jobType[value]}
             </option>
           ))}
         </select>
@@ -92,7 +93,7 @@ export function SyncJobFilters({ channels }: { channels: ChannelRef[] }) {
           onClick={() => push(new URLSearchParams())}
           className="text-sm text-neutral-500 underline underline-offset-4 hover:text-neutral-900"
         >
-          Clear
+          {t.common.clear}
         </button>
       )}
 
@@ -100,7 +101,7 @@ export function SyncJobFilters({ channels }: { channels: ChannelRef[] }) {
         aria-live="polite"
         className={`text-xs text-neutral-400 ${pending ? 'opacity-100' : 'opacity-0'}`}
       >
-        filtering…
+        {t.common.filtering}
       </span>
     </div>
   );

@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { formatDateTime } from '@/lib/dates';
+import { serverMessages } from '@/server/i18n/locale';
 import { SyncStatusPill } from '@/components/ui/StatusPill';
-import { JOB_TYPE_LABELS } from '@/components/sync/SyncJobsTable';
+import type { Messages } from '@/lib/i18n';
 import type { DashboardSummary } from '@/lib/types';
 
 type ChannelRow = DashboardSummary['channels'][number];
@@ -14,40 +15,40 @@ type ChannelRow = DashboardSummary['channels'][number];
  * here — and a marketplace that has simply not been synced yet is a channel
  * somebody should probably click.
  */
-function LastRun({ channel }: { channel: ChannelRow }) {
+function LastRun({ channel, t }: { channel: ChannelRow; t: Messages }) {
   if (channel.connector === 'none') {
-    return <p className="text-sm text-neutral-400">Orders originate here — nothing to sync.</p>;
+    return <p className="text-sm text-neutral-400">{t.overview.activity.nothingToSync}</p>;
   }
 
   if (!channel.lastJob) {
-    return <p className="text-sm text-neutral-400">Never run.</p>;
+    return <p className="text-sm text-neutral-400">{t.overview.activity.neverRun}</p>;
   }
 
   const job = channel.lastJob;
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-500">
       <SyncStatusPill status={job.status} />
-      <span>{JOB_TYPE_LABELS[job.type]}</span>
-      <span className="tabular-nums">
-        {job.itemsOk} ok · {job.itemsFailed} failed
-      </span>
+      <span>{t.jobType[job.type]}</span>
+      <span className="tabular-nums">{t.common.okFailed(job.itemsOk, job.itemsFailed)}</span>
       <span className="text-neutral-400">
-        {job.startedAt ? formatDateTime(job.startedAt) : 'not started'}
+        {job.startedAt ? formatDateTime(job.startedAt) : t.common.notStarted}
       </span>
     </div>
   );
 }
 
-export function ChannelActivity({ channels }: { channels: DashboardSummary['channels'] }) {
+export async function ChannelActivity({ channels }: { channels: DashboardSummary['channels'] }) {
+  const t = await serverMessages();
+
   return (
     <section className="rounded-lg border border-neutral-200 bg-white">
       <header className="flex items-baseline gap-2 border-b border-neutral-100 px-4 py-3">
-        <h2 className="text-sm font-semibold text-neutral-900">Channels</h2>
+        <h2 className="text-sm font-semibold text-neutral-900">{t.overview.activity.title}</h2>
         <Link
           href="/channels"
           className="ml-auto text-xs text-neutral-500 underline underline-offset-4 hover:text-neutral-900"
         >
-          Sync now
+          {t.overview.activity.syncNow}
         </Link>
       </header>
 
@@ -61,15 +62,18 @@ export function ChannelActivity({ channels }: { channels: DashboardSummary['chan
               </span>
             </div>
             <div className="mt-1.5">
-              <LastRun channel={channel} />
+              <LastRun channel={channel} t={t} />
             </div>
             {channel.connector !== 'none' && (
               // `lastSyncedAt` is how far the order feed has been read, which is
               // not the same thing as when a job last ran — a catalog push moves
               // one and not the other, so they are two lines and not one.
               <p className="mt-1 text-xs text-neutral-400">
-                Feed read to{' '}
-                {channel.lastSyncedAt ? formatDateTime(channel.lastSyncedAt) : 'the beginning'}
+                {t.overview.activity.feedReadTo(
+                  channel.lastSyncedAt
+                    ? formatDateTime(channel.lastSyncedAt)
+                    : t.overview.activity.theBeginning,
+                )}
               </p>
             )}
           </li>
