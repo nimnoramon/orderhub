@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_RETRIES, RETRY_BASE_MS, backoffMs, isRetryable } from '@/server/sync/retryable';
+import {
+  MAX_RETRIES,
+  RETRY_BASE_MS,
+  backoffMs,
+  isRetryable,
+  settledRefs,
+} from '@/server/sync/retryable';
 import { clearRefs, dueItems, enqueueFailures, queueState } from '@/server/sync/retry-queue';
 import type { SyncFailure } from '@/lib/types';
 
@@ -32,6 +38,36 @@ describe('isRetryable', () => {
     expect(isRetryable(failure('AUD-1', 'PRICE_FORMAT'))).toBe(false);
     expect(isRetryable(failure('AUD-1', 'DUPLICATE_IN_BATCH'))).toBe(false);
     expect(isRetryable(failure('AUD-1', 'TOO_MANY_ITEMS'))).toBe(false);
+  });
+});
+
+describe('settledRefs', () => {
+  it('takes out what the channel accepted', () => {
+    expect(settledRefs(['AUD-1', 'BAG-2'], [])).toEqual(['AUD-1', 'BAG-2']);
+  });
+
+  /**
+   * The production bug this function was extracted for. An item that ran out of
+   * request budget is queued as RATE_LIMITED without ever being sent; when the
+   * retry finally sends it and the channel refuses it outright, "do not enqueue
+   * it again" is not enough — it is already in the queue. Left there it came
+   * back every run, spent a token to hear the same verdict, and never aged out,
+   * because attempts are only counted for items worth retrying.
+   */
+  it('also takes out what the channel refused for good', () => {
+    const settled = settledRefs(
+      ['AUD-1'],
+      [failure('KIT-9', 'CATEGORY_NOT_LISTED'), failure('PWR-3', 'CHANNEL_ERROR')],
+    );
+
+    expect(settled).toContain('AUD-1');
+    expect(settled).toContain('KIT-9');
+    // The retryable one stays in the queue; it is the whole reason there is one.
+    expect(settled).not.toContain('PWR-3');
+  });
+
+  it('names each ref once, however many ways it was reported', () => {
+    expect(settledRefs(['KIT-9'], [failure('KIT-9', 'CATEGORY_NOT_LISTED')])).toEqual(['KIT-9']);
   });
 });
 

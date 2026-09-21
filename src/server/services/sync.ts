@@ -8,6 +8,7 @@ import { variantIdsBySku, type IngestContext } from '@/server/orders/ingest';
 import { readPages } from '@/server/orders/pull';
 import { jobSelect, mapSyncJob, runJob } from '@/server/sync/runner';
 import { clearRefs, dueItems, enqueueFailures, queueState } from '@/server/sync/retry-queue';
+import { settledRefs } from '@/server/sync/retryable';
 import { listChannels } from '@/server/services/channels';
 import { invalidateDashboard } from '@/server/services/dashboard';
 import type { SyncJobListQuery } from '@/lib/schemas/sync';
@@ -138,7 +139,10 @@ async function pushInBatches(adapter: ChannelAdapter, items: CatalogItem[]): Pro
  * coming back on its own or waiting for a human.
  */
 async function settleCatalog(channelId: string, outcome: BatchOutcome) {
-  await clearRefs(channelId, outcome.okRefs);
+  // Everything the channel has ruled on leaves the queue — accepted or refused
+  // for good. The rule itself lives in retryable.ts, where it is tested.
+  await clearRefs(channelId, settledRefs(outcome.okRefs, outcome.failures));
+
   const { queued, exhausted } = await enqueueFailures(channelId, outcome.failures);
 
   const isQueued = new Set(queued);

@@ -33,6 +33,28 @@ const RETRYABLE_CODES: ReadonlySet<string> = new Set([
 export const isRetryable = (failure: SyncFailure): boolean => RETRYABLE_CODES.has(failure.code);
 
 /**
+ * Which refs a run has finished with, and which therefore belong out of the
+ * queue: the ones the channel accepted, and the ones it refused for a reason
+ * that will not change.
+ *
+ * The second half is easy to forget, because "do not enqueue it" reads like
+ * "remove it" until an item is already in the queue. That happens whenever a
+ * run exhausts its request budget: those items are queued as RATE_LIMITED
+ * without ever having been sent, and what the channel thinks of them is not
+ * known until the retry sends them for real. If it says no permanently, the
+ * item has to leave — otherwise it comes back every run, spends a token to be
+ * told the same thing, and never ages out, because attempts are only counted
+ * for items worth retrying.
+ */
+export function settledRefs(
+  okRefs: readonly string[],
+  failures: readonly SyncFailure[],
+): string[] {
+  const permanent = failures.filter((failure) => !isRetryable(failure)).map((failure) => failure.ref);
+  return [...new Set([...okRefs, ...permanent])];
+}
+
+/**
  * The delay before attempt N+1, having failed N times.
  *
  * Fifteen seconds doubling — 15s, 30s, 1m, 2m, 4m — then the item is abandoned.
