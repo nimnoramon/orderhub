@@ -42,6 +42,9 @@ export function formatDuration(ms: number | null): string {
  */
 export const startOfUtcDay = (day: string): Date => new Date(`${day}T00:00:00.000Z`);
 
+/** Which UTC day a moment falls on, in the `YYYY-MM-DD` the filters speak. */
+export const utcDay = (moment: Date = new Date()): string => moment.toISOString().slice(0, 10);
+
 export const endOfUtcDayExclusive = (day: string): Date => {
   const end = startOfUtcDay(day);
   end.setUTCDate(end.getUTCDate() + 1);

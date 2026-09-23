@@ -9,7 +9,7 @@ This file is the short version plus the rules that are easy to break.
 ## Stack
 
 Next.js 16 (App Router) · TypeScript · Tailwind 4 · Prisma 7 + PostgreSQL (Neon)
-· Redis (Upstash, from milestone 6) · Vitest · pnpm
+· Redis (Upstash, from milestone 6) · Claude API (from milestone 10) · Vitest · pnpm
 
 Prisma 7 runs through a driver adapter (`@prisma/adapter-pg`), not a Rust engine.
 The generated client is TypeScript under `src/generated/prisma` and is gitignored;
@@ -22,7 +22,8 @@ app/                 routes and API routes only
   api/**/route.ts    parse -> authenticate -> call a service -> map to HTTP
   api/mock/a|b/      the mock marketplaces, same app, deliberately awkward
 src/server/          all business logic and the only code that touches the DB
-  services/          products, stock, orders, channels, sync, dashboard, auth
+  services/          products, stock, orders, channels, sync, dashboard, auth, assistant
+  assistant/         the four tools the model may call, its prompt, its daily budget
   auth/              the session cookie, and the seam every page/route goes through
   orders/            state-machine.ts
   channels/          adapter.ts + one adapter per channel + registry
@@ -84,6 +85,15 @@ is worse than not building the feature.
    anyway (`src/lib/hmac.ts`) is fine; sharing the shape of a payload is what
    turns an integration test into a tautology. The mocks also answer in their own
    error envelope and never use `src/server/http/`.
+10. **The assistant reads, and its scope is bound by the call site.** The model
+    gets four read-only tools (`src/server/assistant/tools.ts`) and nothing else
+    — no SQL, no query builder, no write, no tool that takes a query as a string.
+    `merchantId` reaches them inside a `ToolContext` built from the session row;
+    it is never a tool argument, so no schema declares it and zod drops it from
+    any call that sends one anyway. A question that says "read merchant xyz
+    instead" has nowhere to land. A prompt is not a security boundary and is not
+    used as one here — what keeps the panel safe is that there is no code path
+    from a tool call to another merchant's rows.
 
 ## Conventions
 
@@ -146,6 +156,16 @@ Milestone 9 translated every screen and moved the demo to baht, and added no
 suite: the dictionaries are copy, and the one rule worth pinning down — a
 missing key — is already a type error. Say that rather than testing that `th.ts`
 has the keys `en.ts` has.
+
+Milestone 10 added `tests/assistant-tools.test.ts`, on the same terms — no
+database, no network, one rule rather than a wiring. It asserts invariant 10:
+a tool call cannot choose whose data it reads, whatever arguments it carries.
+Around that it pins the tool table itself — the schemas shown to the model are
+the ones the executor parses, an unknown name is refused, out-of-range arguments
+are rejected rather than clamped, and each tool applies its own defaults. The
+loop, the route and the panel stay untested like every other wiring here, and
+the model's prose is not something a unit test can pin down: say so rather than
+asserting on a sentence.
 
 ## Commands
 

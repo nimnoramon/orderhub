@@ -42,6 +42,16 @@ export const memoryCache = new ExpiringMap<string>();
 export const memoryBuckets = new ExpiringMap<{ tokens: number; updatedAt: number }>();
 
 /**
+ * Plain counters that expire: the assistant's questions-per-day cap.
+ *
+ * Read-modify-write in one process is atomic here for the same reason it is not
+ * on the Redis path — there is only ever one of us. `INCR` does the same job on
+ * the other side, which is why the port is "add one and tell me the total"
+ * rather than a get and a set.
+ */
+export const memoryCounters = new ExpiringMap<number>();
+
+/**
  * The retry queue: one map per channel, ref -> when it is due and how many times
  * it has failed. A Map preserves insertion order, and the queue is read by due
  * time, so callers sort — the same work the sorted set does on the other path.

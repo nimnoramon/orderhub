@@ -1,7 +1,9 @@
 import { formatDateTime } from '@/lib/dates';
 import { requireSignedIn } from '@/server/auth/session';
 import { serverMessages } from '@/server/i18n/locale';
+import { assistantEnabled } from '@/server/services/assistant';
 import { getDashboardSummary } from '@/server/services/dashboard';
+import { AskPanel } from '@/components/dashboard/AskPanel';
 import { ChannelActivity } from '@/components/dashboard/ChannelActivity';
 import { RecentFailures } from '@/components/dashboard/RecentFailures';
 import { StatusBreakdown } from '@/components/dashboard/StatusBreakdown';
@@ -35,6 +37,13 @@ export default async function OverviewPage() {
       </header>
 
       <SummaryTiles summary={summary} />
+
+      {/* Under the tiles rather than above them: the four numbers are the answer
+          to the question most visitors have, and the panel is for the one the
+          tiles cannot answer. Whether it renders at all is decided here, on the
+          server, so a deployment without a model API key shows a sentence
+          instead of a form that could only fail. */}
+      <AskPanel enabled={assistantEnabled()} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <StatusBreakdown ordersByStatus={summary.ordersByStatus} />

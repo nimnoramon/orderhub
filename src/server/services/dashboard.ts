@@ -1,11 +1,12 @@
-import { OrderStatus, SyncJobStatus } from '@/generated/prisma/enums';
+import { ChannelKind, OrderStatus, SyncJobStatus } from '@/generated/prisma/enums';
 import { prisma } from '@/server/db';
 import { connectorState } from '@/server/channels/registry';
 import { dropCache, readCache, writeCache } from '@/server/redis/cache';
 import { dashboardKey } from '@/server/redis/keys';
-import { deriveLevels, LOW_STOCK_THRESHOLD } from '@/server/stock/levels';
+import { lowStockVariants } from '@/server/services/stock';
+import { LOW_STOCK_THRESHOLD } from '@/server/stock/levels';
 import { jobSelect, mapSyncJob } from '@/server/sync/runner';
-import { startOfUtcDay } from '@/lib/dates';
+import { endOfUtcDayExclusive, startOfUtcDay } from '@/lib/dates';
 import type { DashboardSummary, DashboardSummaryResponse } from '@/lib/types';
 
 /**
@@ -40,35 +41,84 @@ const ZERO_BY_STATUS = Object.fromEntries(
 /**
  * How many variants are low somewhere.
  *
- * The derivation is the same pure function the stock screens use — invariant 2
- * says stock is `SUM(delta)` and that there is one implementation of it, and a
- * dashboard that counted low stock its own way would be a second one, free to
- * drift. Postgres does the summing; the pure code decides what "low" means and
- * fills in the pairs that have no movements at all, which are zero and
- * therefore low.
+ * The tile counts the rows the stock service already knows how to find, rather
+ * than deriving low stock a second time. Invariant 2 pins the arithmetic to one
+ * pure function; this keeps the *question* — which variants are low — to one
+ * implementation as well, so the number on the overview and the list the ask
+ * panel reads out can never disagree about it.
  */
-async function countLowStock(merchantId: string): Promise<number> {
-  const [variants, warehouses, grouped] = await Promise.all([
-    prisma.variant.findMany({ where: { product: { merchantId } }, select: { id: true } }),
-    prisma.warehouse.findMany({ where: { merchantId }, select: { id: true } }),
-    prisma.stockMovement.groupBy({
-      by: ['variantId', 'warehouseId'],
-      where: { warehouse: { merchantId } },
-      _sum: { delta: true },
+const countLowStock = async (merchantId: string): Promise<number> =>
+  (await lowStockVariants(merchantId)).length;
+
+/**
+ * Orders and takings per channel over a window of whole UTC days.
+ *
+ * Deliberately not part of the cached summary: the summary is one fixed shape
+ * for one screen, and this takes a date range, so caching it would mean a key
+ * per range and an invalidation rule for each. It is a plain read, and its only
+ * caller today asks it once per question.
+ *
+ * Cancellations are counted and then left out of the takings. The overview's
+ * "taken today" tile includes them and says so, which is right for a tile that
+ * has no room to explain itself; a caller asking which channel sold best wants
+ * the money that stayed, and gets both numbers so it can say which it means.
+ */
+export type ChannelSales = {
+  channelId: string;
+  channel: string;
+  kind: ChannelKind;
+  orders: number;
+  cancelledOrders: number;
+  revenueCents: number;
+};
+
+export async function salesByChannel(
+  merchantId: string,
+  from: string,
+  to: string,
+): Promise<ChannelSales[]> {
+  const [channels, grouped] = await Promise.all([
+    prisma.channel.findMany({
+      where: { merchantId },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, kind: true },
+    }),
+    prisma.order.groupBy({
+      by: ['channelId', 'status'],
+      where: { merchantId, placedAt: { gte: startOfUtcDay(from), lt: endOfUtcDayExclusive(to) } },
+      _count: { _all: true },
+      _sum: { totalCents: true },
     }),
   ]);
 
-  const levels = deriveLevels(
-    grouped.map((row) => ({
-      variantId: row.variantId,
-      warehouseId: row.warehouseId,
-      delta: row._sum.delta ?? 0,
-    })),
-    variants.map((variant) => variant.id),
-    warehouses.map((warehouse) => warehouse.id),
+  const totals = new Map(
+    channels.map((channel) => [
+      channel.id,
+      { ...channel, channelId: channel.id, channel: channel.name, orders: 0, cancelledOrders: 0, revenueCents: 0 },
+    ]),
   );
 
-  return levels.filter((level) => level.lowStock).length;
+  for (const row of grouped) {
+    const total = totals.get(row.channelId);
+    // A channel deleted between the two queries has orders and no name. Skipping
+    // it loses a row; letting it through would crash the page for want of one.
+    if (!total) continue;
+
+    total.orders += row._count._all;
+    if (row.status === OrderStatus.cancelled) total.cancelledOrders += row._count._all;
+    else total.revenueCents += row._sum.totalCents ?? 0;
+  }
+
+  return [...totals.values()]
+    .map(({ channelId, channel, kind, orders, cancelledOrders, revenueCents }) => ({
+      channelId,
+      channel,
+      kind,
+      orders,
+      cancelledOrders,
+      revenueCents,
+    }))
+    .sort((a, b) => b.revenueCents - a.revenueCents || b.orders - a.orders);
 }
 
 /** The last run of any kind per channel — "when did we last talk to them". */

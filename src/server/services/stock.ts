@@ -168,6 +168,75 @@ export async function getStockLevels(
   };
 }
 
+/**
+ * One row per variant that is low in at least one warehouse, emptiest first.
+ *
+ * The stock grid answers "what is the level of everything, a page at a time";
+ * this answers "what is about to run out", which is a different question and the
+ * one both the overview tile and the ask panel are really asking. It is here
+ * rather than beside either of them so there is one definition of it — invariant
+ * 2 is about the arithmetic, and `deriveLevels` still owns that, but *which
+ * variants count as low* is a second thing two callers could disagree about.
+ *
+ * Unpaginated by design: the catalog is small, the filter is the point, and a
+ * caller that wants the top ten passes `limit`. A merchant with a hundred
+ * thousand variants would need the sum in the database (see the `StockLevel`
+ * note in CLAUDE.md), not a page size here.
+ */
+export type LowStockRow = {
+  variantId: string;
+  variantSku: string;
+  productSku: string;
+  productName: string;
+  onHand: number;
+  /** Only the warehouses that are actually low — the rest are not the problem. */
+  low: { warehouseCode: string; onHand: number }[];
+};
+
+export async function lowStockVariants(
+  merchantId: string,
+  limit?: number,
+): Promise<LowStockRow[]> {
+  const [variants, warehouses, grouped] = await Promise.all([
+    prisma.variant.findMany({
+      where: { product: { merchantId } },
+      orderBy: { sku: 'asc' },
+      select: { id: true, sku: true, product: { select: { sku: true, name: true } } },
+    }),
+    listWarehouses(merchantId),
+    prisma.stockMovement.groupBy({
+      by: ['variantId', 'warehouseId'],
+      where: { warehouse: { merchantId } },
+      _sum: { delta: true },
+    }),
+  ]);
+
+  const codeById = new Map(warehouses.map((warehouse) => [warehouse.id, warehouse.code]));
+  const levels = deriveLevels(
+    toDeltaRows(grouped),
+    variants.map((variant) => variant.id),
+    warehouses.map((warehouse) => warehouse.id),
+  );
+  const byVariant = new Map(levels.map((level) => [level.variantId, level]));
+
+  const rows = variants
+    .map((variant) => ({ variant, level: byVariant.get(variant.id)! }))
+    .filter(({ level }) => level.lowStock)
+    .map(({ variant, level }) => ({
+      variantId: variant.id,
+      variantSku: variant.sku,
+      productSku: variant.product.sku,
+      productName: variant.product.name,
+      onHand: level.onHand,
+      low: level.byWarehouse
+        .filter((cell) => cell.lowStock)
+        .map((cell) => ({ warehouseCode: codeById.get(cell.warehouseId)!, onHand: cell.onHand })),
+    }))
+    .sort((a, b) => a.onHand - b.onHand || a.variantSku.localeCompare(b.variantSku));
+
+  return limit === undefined ? rows : rows.slice(0, limit);
+}
+
 /** The ledger itself, newest first — the audit trail the design exists for. */
 export async function listMovements(
   merchantId: string,

@@ -18,6 +18,11 @@ export const ERROR_STATUS = {
   // and the thing upstream was not, which is what a caller needs to decide
   // whether retrying is worth anything.
   CHANNEL_ERROR: 502,
+  // The ask panel, switched off or unable to reach the model. 503 rather than
+  // 502 because both cases are about this deployment not offering the feature
+  // right now — an unset API key is not an upstream failure — and because it is
+  // the status that says "ask again later" without implying the request was bad.
+  ASSISTANT_UNAVAILABLE: 503,
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_STATUS;

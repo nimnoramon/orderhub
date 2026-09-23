@@ -1,7 +1,7 @@
 import { AppError } from '@/server/http/errors';
 import { redis, tolerant } from '@/server/redis/client';
 import { memoryBuckets } from '@/server/redis/memory';
-import { bucketKey, loginKey } from '@/server/redis/keys';
+import { askKey, bucketKey, loginKey } from '@/server/redis/keys';
 import type { LimiterState } from '@/lib/types';
 import {
   TAKE_SCRIPT,
@@ -179,6 +179,30 @@ export function loginLimiter(identity: string): Limiter {
       new AppError(
         'RATE_LIMITED',
         `Too many sign-in attempts. Try again in ${Math.ceil(waitMs / 1000)}s.`,
+      ),
+  );
+}
+
+/**
+ * Five questions back to back, then two a minute, per signed-in person.
+ *
+ * The burst is what a conversation actually looks like — a question, a
+ * follow-up, a "and yesterday?" — and the trickle afterwards is what stops a
+ * tab left open on a script from spending an afternoon's worth of tokens. The
+ * refill is slow enough that the limiter refuses rather than waits: a token
+ * thirty seconds away is past `MAX_WAIT_MS`, so the panel gets a sentence
+ * immediately instead of a spinner.
+ */
+export const ASK_RATE: Rate = { capacity: 5, refillPerMinute: 2 };
+
+export function askLimiter(userId: string): Limiter {
+  return limiterFor(
+    askKey(userId),
+    ASK_RATE,
+    (waitMs) =>
+      new AppError(
+        'RATE_LIMITED',
+        `You are asking faster than this demo answers. Try again in ${Math.ceil(waitMs / 1000)}s.`,
       ),
   );
 }

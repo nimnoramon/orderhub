@@ -263,6 +263,19 @@ export type DashboardSummary = {
   recentFailures: SyncJobItem[];
 };
 
+/**
+ * What the ask panel renders: the sentence, and the lookups behind it.
+ *
+ * `usedTools` exists for the same reason every tile on the overview is a link.
+ * A figure on a dashboard that cannot be traced is a figure nobody can check,
+ * and an answer written by a model is exactly the kind that needs to be — so
+ * the panel names the reads it was built from, in the tools' own names.
+ */
+export type AskAnswer = {
+  answer: string;
+  usedTools: string[];
+};
+
 export type DashboardSummaryResponse = {
   summary: DashboardSummary;
   /** True when this response came out of Redis rather than out of Postgres. */

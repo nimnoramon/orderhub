@@ -138,6 +138,25 @@ export const en = {
     },
   },
 
+  ask: {
+    title: 'Ask OrderHub',
+    subtitle: 'A question about this merchant’s live data, answered from the same reads the screens use.',
+    placeholder: 'Which products are running low?',
+    send: 'Ask',
+    sending: 'Looking…',
+    clear: 'Start over',
+    suggestions: [
+      'Which products are running low?',
+      'Which channel sold best yesterday?',
+      'What is still waiting to be packed?',
+    ],
+    readFrom: (tools: string) => `read ${tools}`,
+    failed: 'The assistant could not answer that one.',
+    disabled: 'No model API key is configured in this deployment, so the assistant is switched off.',
+    footnote:
+      'Answers are written by Claude from live lookups. It can read this merchant’s orders, stock and channels and nothing else, and it cannot change anything — check anything that matters against the screens.',
+  },
+
   orders: {
     title: 'Orders',
     subtitle: (total: number) =>
@@ -359,6 +378,7 @@ export const en = {
       'Overview dashboard and README',
       'Sign-in, signed session cookie',
       'Two languages, and prices in baht',
+      'An assistant that reads the dashboard',
     ],
   },
 };

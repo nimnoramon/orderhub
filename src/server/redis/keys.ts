@@ -25,6 +25,20 @@ export const retryTriesKey = (channelId: string): string => `${prefix()}:retry:$
 /** The cached dashboard summary. One per merchant, because the data is. */
 export const dashboardKey = (merchantId: string): string => `${prefix()}:dash:${merchantId}`;
 
+/** One signed-in person's question budget for the ask panel. Hash of { tokens, ts }. */
+export const askKey = (userId: string): string => `${prefix()}:ask:${userId}`;
+
+/**
+ * How many questions this deployment has answered today. A plain counter.
+ *
+ * Deliberately not per merchant and not per user: the two buckets above protect
+ * a marketplace and a password from one caller, and this protects a credit card
+ * from all of them at once. The day is in the key rather than being reset by a
+ * job, so expiry does the cleanup and a counter that is never read again simply
+ * disappears.
+ */
+export const askDayKey = (day: string): string => `${prefix()}:ask:day:${day}`;
+
 /**
  * Sign-in attempts from one address and one client. Hash of { tokens, ts }.
  *
